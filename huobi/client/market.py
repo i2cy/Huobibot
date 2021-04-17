@@ -1,4 +1,5 @@
 from huobi.constant import *
+from huobi.model.market import *
 from huobi.utils import *
 from huobi.utils.input_checker import check_in_list
 
@@ -34,7 +35,7 @@ class MarketClient(object):
             "period": period,
             "size": size
         }
-        from huobi.service import GetCandleStickService
+        from huobi.service.market.get_candlestick import GetCandleStickService
         return GetCandleStickService(params).request(**self.__kwargs)
 
     def sub_candlestick(self, symbols: 'str', interval: 'CandlestickInterval', callback, error_handler):
@@ -63,7 +64,7 @@ class MarketClient(object):
             "interval": interval,
         }
 
-        from huobi.service import SubCandleStickService
+        from huobi.service.market.sub_candlestick import SubCandleStickService
         SubCandleStickService(params).subscribe(callback, error_handler, **self.__kwargs)
 
     def req_candlestick(self, symbols: 'str', interval: 'CandlestickInterval', callback,
@@ -96,7 +97,7 @@ class MarketClient(object):
             "end_ts_second": end_ts_second
         }
 
-        from huobi.service import ReqCandleStickService
+        from huobi.service.market.req_candlestick import ReqCandleStickService
         ReqCandleStickService(params).subscribe(callback, error_handler, **self.__kwargs)
 
     def get_pricedepth(self, symbol: 'str', depth_type: 'str', depth_size: 'int' = None) -> PriceDepth:
@@ -119,7 +120,7 @@ class MarketClient(object):
             # "depth": depth_size
         }
 
-        from huobi.service import GetPriceDepthService
+        from huobi.service.market.get_pricedepth import GetPriceDepthService
         ret_data = GetPriceDepthService(params).request(**self.__kwargs)
 
         if depth_size is not None:
@@ -173,7 +174,7 @@ class MarketClient(object):
             "step": new_step,
         }
 
-        from huobi.service import SubPriceDepthService
+        from huobi.service.market.sub_pricedepth import SubPriceDepthService
         SubPriceDepthService(params).subscribe(callback, error_handler, **self.__kwargs)
 
     def sub_pricedepth_bbo(self, symbols: 'str', callback, error_handler=None):
@@ -198,7 +199,7 @@ class MarketClient(object):
             "symbol_list": symbol_list,
         }
 
-        from huobi.service import SubPriceDepthBboService
+        from huobi.service.market.sub_pricedepth_bbo import SubPriceDepthBboService
         SubPriceDepthBboService(params).subscribe(callback, error_handler, **self.__kwargs)
 
     def req_pricedepth(self, symbols: 'str', depth_step: 'str', callback, error_handler=None):
@@ -226,7 +227,7 @@ class MarketClient(object):
             "step": new_step,
         }
 
-        from huobi.service import ReqPriceDepthService
+        from huobi.service.market.req_pricedepth import ReqPriceDepthService
         ReqPriceDepthService(params).subscribe(callback, error_handler, **self.__kwargs)
 
     def get_market_detail(self, symbol: 'str') -> MarketDetail:
@@ -243,7 +244,7 @@ class MarketClient(object):
             "symbol": symbol,
         }
 
-        from huobi.service import GetMarketDetailService
+        from huobi.service.market.get_market_detail import GetMarketDetailService
         return GetMarketDetailService(params).request(**self.__kwargs)
 
     def sub_market_detail(self, symbols: 'str', callback, error_handler=None):
@@ -267,7 +268,7 @@ class MarketClient(object):
             "symbol_list": symbol_list,
         }
 
-        from huobi.service import SubMarketDetailService
+        from huobi.service.market.sub_market_detail import SubMarketDetailService
         SubMarketDetailService(params).subscribe(callback, error_handler, **self.__kwargs)
 
     def req_market_detail(self, symbols: 'str', callback, error_handler=None):
@@ -291,7 +292,7 @@ class MarketClient(object):
             "symbol_list": symbol_list,
         }
 
-        from huobi.service import ReqMarketDetailService
+        from huobi.service.market.req_market_detail import ReqMarketDetailService
         ReqMarketDetailService(params).subscribe(callback, error_handler, **self.__kwargs)
 
     def get_market_trade(self, symbol: 'str') -> list:
@@ -308,7 +309,7 @@ class MarketClient(object):
             "symbol": symbol,
         }
 
-        from huobi.service import GetMarketTradeService
+        from huobi.service.market.get_market_trade import GetMarketTradeService
         return GetMarketTradeService(params).request(**self.__kwargs)
 
     def get_history_trade(self, symbol: 'str', size: 'int' = None) -> list:
@@ -328,7 +329,7 @@ class MarketClient(object):
             "size": size
         }
 
-        from huobi.service import GetHistoryTradeService
+        from huobi.service.market.get_history_trade import GetHistoryTradeService
         return GetHistoryTradeService(params).request(**self.__kwargs)
 
     def sub_trade_detail(self, symbols: 'str', callback, error_handler=None):
@@ -352,7 +353,7 @@ class MarketClient(object):
             "symbol_list": symbol_list,
         }
 
-        from huobi.service import SubTradeDetailService
+        from huobi.service.market.sub_trade_detail import SubTradeDetailService
         SubTradeDetailService(params).subscribe(callback, error_handler, **self.__kwargs)
 
     def req_trade_detail(self, symbols: 'str', callback, error_handler=None):
@@ -376,7 +377,7 @@ class MarketClient(object):
             "symbol_list": symbol_list,
         }
 
-        from huobi.service import ReqTradeDetailService
+        from huobi.service.market.req_trade_detail import ReqTradeDetailService
         ReqTradeDetailService(params).subscribe(callback, error_handler, **self.__kwargs)
 
     def get_market_detail_merged(self, symbol):
@@ -385,7 +386,7 @@ class MarketClient(object):
             "symbol": symbol
         }
 
-        from huobi.service import GetMarketDetailMergedService
+        from huobi.service.market.get_market_detail_merged import GetMarketDetailMergedService
         return GetMarketDetailMergedService(params).request(**self.__kwargs)
 
     def get_market_tickers(self) -> list:
@@ -396,7 +397,7 @@ class MarketClient(object):
         """
 
         params = {}
-        from huobi.service import GetMarketTickersService
+        from huobi.service.market.get_market_tickers import GetMarketTickersService
         return GetMarketTickersService(params).request(**self.__kwargs)
 
     """
@@ -429,7 +430,7 @@ class MarketClient(object):
             "levels": levels
         }
 
-        from huobi.service import SubMbpIncreaseService
+        from huobi.service.market.sub_mbp_increase import SubMbpIncreaseService
         SubMbpIncreaseService(params).subscribe(callback, error_handler, **self.__kwargs)
 
     """
@@ -463,7 +464,7 @@ class MarketClient(object):
             "levels": levels
         }
 
-        from huobi.service import SubMbpFullService
+        from huobi.service.market.sub_mbp_full import SubMbpFullService
         SubMbpFullService(params).subscribe(callback, error_handler, **self.__kwargs)
 
     def req_mbp(self, symbols: 'str', levels: 'int', callback, auto_close=True, error_handler=None):
@@ -491,5 +492,5 @@ class MarketClient(object):
             "symbol_list": symbol_list,
             "levels": levels
         }
-        from huobi.service import ReqMbpService
+        from huobi.service.market.req_mbp import ReqMbpService
         ReqMbpService(params).subscribe(callback, error_handler, **self.__kwargs)

@@ -1,3 +1,8 @@
+from huobi.connection.impl.restapi_request import RestApiRequest
+from huobi.constant import *
+from huobi.model.generic import *
+
+
 class GenericClient(object):
 
     def __init__(self, **kwargs):
@@ -22,7 +27,7 @@ class GenericClient(object):
 
         params = {}
 
-        from huobi.service import GetExchangeTimestampService
+        from huobi.service.generic.get_exchange_timestamp import GetExchangeTimestampService
         return GetExchangeTimestampService(params).request(**self.__kwargs)
 
     def get_exchange_currencies(self) -> list():
@@ -35,7 +40,7 @@ class GenericClient(object):
 
         params = {}
 
-        from huobi.service import GetExchangeCurrenciesService
+        from huobi.service.generic.get_exchange_currencies import GetExchangeCurrenciesService
         return GetExchangeCurrenciesService(params).request(**self.__kwargs)
 
     def get_exchange_symbols(self) -> list():
@@ -48,7 +53,7 @@ class GenericClient(object):
 
         params = {}
 
-        from huobi.service import GetExchangeSymbolsService
+        from huobi.service.generic.get_exchange_symbols import GetExchangeSymbolsService
         return GetExchangeSymbolsService(params).request(**self.__kwargs)
 
     def get_exchange_info(self) -> ExchangeInfo:
@@ -79,7 +84,7 @@ class GenericClient(object):
             "authorizedUser": is_authorized_user
         }
 
-        from huobi.service import GetReferenceCurrenciesService
+        from huobi.service.generic.get_reference_currencies import GetReferenceCurrenciesService
         return GetReferenceCurrenciesService(params).request(**self.__kwargs)
 
     def get_system_status(self) -> str:
@@ -89,9 +94,9 @@ class GenericClient(object):
         :return: system status.
         """
 
-        from huobi.service import GetSystemStatusService
+        from huobi.service.generic.get_system_status import GetSystemStatusService
         return GetSystemStatusService({}).request(**self.__kwargs)
 
     def get_market_status(self):
-        from huobi.service import GetMarketStatusService
+        from huobi.service.generic.get_market_status import GetMarketStatusService
         return GetMarketStatusService({}).request(**self.__kwargs)

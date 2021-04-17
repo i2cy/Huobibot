@@ -1,3 +1,4 @@
+from huobi.model.wallet.deposit_history_item import DepositHistoryItem
 class DepositHistory:
     """
     The deposit history

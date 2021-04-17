@@ -2,7 +2,7 @@ import logging
 
 from huobi.connection.impl.websocket_manage import WebsocketManage
 from huobi.connection.impl.websocket_request import WebsocketRequest
-from huobi import WebSocketDefine
+from huobi.constant.system import WebSocketDefine
 
 
 class WebSocketReqClient(object):

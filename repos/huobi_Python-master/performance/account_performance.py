@@ -21,7 +21,7 @@ class AccountClientPerformance(AccountClient):
         super(AccountClientPerformance, self).__init__(**self.__kwargs)
 
     def get_account_balance(self) -> list:
-        from huobi import GetBalanceService
+        from huobi.service.account.get_balance import GetBalanceService
         """
         Get the balance of a all accounts.
 
