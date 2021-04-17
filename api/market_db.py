@@ -26,7 +26,8 @@ class MarketDB:
         self.db.switch_autocommit()
         self.markets = []
         self.contracts = []
-        self.all_tables = []
+        self.all_tables = {}
+        self.all_tablenames = []
 
         self.get_db_info()
 
@@ -40,7 +41,8 @@ class MarketDB:
 
         self.offsets = {}
 
-        for ele in self.all_tables:
+        for ele in self.all_tablenames:
+            self.all_tables.update({ele: self.db.select_table(ele)})
             self.offsets.update({ele: self.get_offset(ele)})
 
     def get_offset(self, table_object):
@@ -53,7 +55,7 @@ class MarketDB:
 
     def get_db_info(self):
         info = self.db.list_all_tables()
-        self.all_tables = info
+        self.all_tablenames = info
         for ele in info:
             if ele.split("_")[0] == "MARKET":
                 self.markets.append(ele[1])
@@ -105,12 +107,26 @@ class MarketDB:
             stop_ts = start_ts + 1000
         ret = {}
         for ele in self.monitoring:
-            market_tab = self.db.select_table("MARKET_{}".format(ele))
-            contract_tab = self.db.select_table("CONTRACT_{}".format(ele))
+            market_tab = self.all_tables["MARKET_{}".format(ele)]
+            contract_tab = self.all_tables["CONTRACT_{}".format(ele)]
             ret.update({ele: {"market": market_tab.get((start_ts, stop_ts), primary_index_column="TIMESTAMP"),
                               "contract": contract_tab.get((start_ts, stop_ts), primary_index_column="TIMESTAMP")}})
         return ret
 
     def update(self, db_name, data):
         if len(data) < 15:
-            data.insert()
+            offset = self.offsets[db_name] + 1
+            data.insert(0, offset)
+        else:
+            offset = data[0]
+        tab = self.all_tables[db_name]
+
+        try:
+            if offset > self.offsets[db_name]:
+                tab.append(data)
+                self.offsets[db_name] += 1
+            else:
+                tab.update(data, offset)
+
+        except Exception as err:
+            raise Exception("failed to update data in database, {}".format(err))
