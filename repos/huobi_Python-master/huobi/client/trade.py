@@ -1,4 +1,3 @@
-from huobi.constant import *
 from huobi.model.trade import *
 from huobi.utils.input_checker import *
 
@@ -33,7 +32,7 @@ class TradeClient(object):
             "symbols": symbols
         }
 
-        from huobi.service.trade.get_feerate import GetFeeRateService
+        from huobi import GetFeeRateService
         return GetFeeRateService(params).request(**self.__kwargs)
 
     def get_transact_feerate(self, symbols: 'str') -> list:
@@ -49,7 +48,7 @@ class TradeClient(object):
             "symbols": symbols
         }
 
-        from huobi.service.trade.get_transact_feerate import GetTransactFeeRateService
+        from huobi import GetTransactFeeRateService
         return GetTransactFeeRateService(params).request(**self.__kwargs)
 
     def sub_order_update(self, symbols: 'str', callback, error_handler=None):
@@ -73,7 +72,7 @@ class TradeClient(object):
             "symbol_list" : symbol_list,
         }
 
-        from huobi.service.trade.sub_order_update_v2 import SubOrderUpdateV2Service
+        from huobi import SubOrderUpdateV2Service
         SubOrderUpdateV2Service(params).subscribe(callback, error_handler, **self.__kwargs)
 
     def req_order_list(self, symbol: 'str', account_id: int, callback, order_states:'str',
@@ -109,7 +108,7 @@ class TradeClient(object):
             "client-req-id" : client_req_id
         }
 
-        from huobi.service.trade.req_order_list import ReqOrderListService
+        from huobi import ReqOrderListService
         ReqOrderListService(params).subscribe(callback, error_handler, **self.__kwargs)
 
     def req_order_detail(self, order_id: 'str', callback,
@@ -135,7 +134,7 @@ class TradeClient(object):
             "cid": client_req_id,
         }
 
-        from huobi.service.trade.req_order_detail import ReqOrderDetailService
+        from huobi import ReqOrderDetailService
         ReqOrderDetailService(params).subscribe(callback, error_handler, **self.__kwargs)
 
     def get_order(self, order_id: 'int') -> Order:
@@ -151,7 +150,7 @@ class TradeClient(object):
             "order_id": order_id,
         }
 
-        from huobi.service.trade.get_order_by_id import GetOrderByIdService
+        from huobi import GetOrderByIdService
         return GetOrderByIdService(params).request(**self.__kwargs)
 
     def get_order_by_client_order_id(self, client_order_id):
@@ -161,7 +160,7 @@ class TradeClient(object):
             "clientOrderId": client_order_id,
         }
 
-        from huobi.service.trade.get_order_by_client_order_id import GetOrderByClientOrderIdService
+        from huobi import GetOrderByClientOrderIdService
         return GetOrderByClientOrderIdService(params).request(**self.__kwargs)
 
     def get_orders(self, symbol: 'str', order_state: 'OrderState', order_type: 'OrderType' = None,
@@ -183,7 +182,7 @@ class TradeClient(object):
             "direct" : direct
         }
 
-        from huobi.service.trade.get_orders import GetOrdersService
+        from huobi import GetOrdersService
         return GetOrdersService(params).request(**self.__kwargs)
 
     def get_open_orders(self, symbol: 'str', account_id: 'int', side: 'OrderSide' = None,
@@ -211,7 +210,7 @@ class TradeClient(object):
             "direct" : direct
         }
 
-        from huobi.service.trade.get_open_orders import GetOpenOrdersService
+        from huobi import GetOpenOrdersService
         return GetOpenOrdersService(params).request(**self.__kwargs)
 
     def get_history_orders(self, symbol=None, start_time=None, end_time=None, size=None, direct=None)-> list:
@@ -233,7 +232,7 @@ class TradeClient(object):
             "direct" : direct
         }
 
-        from huobi.service.trade.get_history_orders import GetHistoryOrdersService
+        from huobi import GetHistoryOrdersService
         return GetHistoryOrdersService(params).request(**self.__kwargs)
 
     def get_match_result(self, symbol: 'str', order_type: 'OrderSide' = None, start_date: 'str' = None,
@@ -268,7 +267,7 @@ class TradeClient(object):
             "direct" : direct
         }
 
-        from huobi.service.trade.get_match_results import GetMatchResultsService
+        from huobi import GetMatchResultsService
         return GetMatchResultsService(params).request(**self.__kwargs)
 
     def get_match_results_by_order_id(self, order_id: 'int') -> list:
@@ -284,7 +283,7 @@ class TradeClient(object):
             "order_id": order_id
         }
 
-        from huobi.service.trade.get_match_results_by_order_id import GetMatchResultsByOrderIdService
+        from huobi import GetMatchResultsByOrderIdService
         return GetMatchResultsByOrderIdService(params).request(**self.__kwargs)
 
     def order_source_desc(self, account_type):
@@ -346,7 +345,7 @@ class TradeClient(object):
 
         params = self.create_order_param_check(symbol, account_id, order_type, amount,
                      price, source, client_order_id, stop_price, operator)
-        from huobi.service.trade.post_create_order import PostCreateOrderService
+        from huobi import PostCreateOrderService
         return PostCreateOrderService(params).request(**self.__kwargs)
 
     def create_spot_order(self, symbol: 'str', account_id: 'int', order_type: 'OrderType', amount: 'float',
@@ -383,7 +382,7 @@ class TradeClient(object):
             "order_id" : order_id
         }
 
-        from huobi.service.trade.post_cancel_order import PostCancelOrderService
+        from huobi import PostCancelOrderService
         return PostCancelOrderService(params).request(**self.__kwargs)
 
     def cancel_orders(self, symbol, order_id_list)->BatchCancelResult:
@@ -406,7 +405,7 @@ class TradeClient(object):
             "order-ids" : string_list
         }
 
-        from huobi.service.trade.post_batch_cancel_order import PostBatchCancelOrderService
+        from huobi import PostBatchCancelOrderService
         return PostBatchCancelOrderService(params).request(**self.__kwargs)
 
     def cancel_open_orders(self, account_id, symbols: 'str'=None , side=None, size=None)->BatchCancelCount:
@@ -428,7 +427,7 @@ class TradeClient(object):
             "size" : size
         }
 
-        from huobi.service.trade.post_batch_cancel_open_order import PostBatchCancelOpenOrderService
+        from huobi import PostBatchCancelOpenOrderService
         return PostBatchCancelOpenOrderService(params).request(**self.__kwargs)
 
     def cancel_client_order(self, client_order_id)->int:
@@ -443,7 +442,7 @@ class TradeClient(object):
             "client-order-id" : client_order_id
         }
 
-        from huobi.service.trade.post_cancel_client_order import PostCancelClientOrderService
+        from huobi import PostCancelClientOrderService
         return PostCancelClientOrderService(params).request(**self.__kwargs)
 
     def transfer_between_futures_and_pro(self, currency: 'str', amount: 'float',
@@ -468,7 +467,7 @@ class TradeClient(object):
 
         }
 
-        from huobi.service.trade.post_transfer_futures_pro import PostTransferFuturesProService
+        from huobi import PostTransferFuturesProService
         return PostTransferFuturesProService(params).request(**self.__kwargs)
 
     def batch_create_order(self, order_config_list) -> int:
@@ -505,7 +504,7 @@ class TradeClient(object):
 
             new_config_list.append(new_item)
 
-        from huobi.service.trade.post_batch_create_order import PostBatchCreateOrderService
+        from huobi import PostBatchCreateOrderService
         return PostBatchCreateOrderService(new_config_list).request(**self.__kwargs)
 
     def sub_trade_clearing(self, symbols: 'str', callback, error_handler=None):
@@ -536,5 +535,5 @@ class TradeClient(object):
             "symbol_list": symbol_list,
         }
 
-        from huobi.service.trade.sub_trade_clearing_v2 import SubTradeClearingV2Service
+        from huobi import SubTradeClearingV2Service
         SubTradeClearingV2Service(params).subscribe(callback, error_handler, **self.__kwargs)

@@ -12,7 +12,7 @@ MARKET_CONFIG = "../configs/market.json"
 class MarketDB:
 
     def __init__(self):
-        with open("MARKET_CONFIG") as conf:
+        with open(MARKET_CONFIG) as conf:
             config = json.load(conf)
         try:
             self.db_file = config["database"]

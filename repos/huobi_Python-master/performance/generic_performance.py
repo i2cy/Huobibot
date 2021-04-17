@@ -1,5 +1,5 @@
 from huobi.client.generic import GenericClient
-from huobi.model.generic import ExchangeInfo
+from huobi import ExchangeInfo
 
 
 class GenericClientPerformance(GenericClient):

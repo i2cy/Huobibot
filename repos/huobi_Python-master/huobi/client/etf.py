@@ -1,6 +1,4 @@
-from huobi.constant import *
 from huobi.model.etf import *
-from huobi.utils import *
 
 
 class EtfClient(object):
@@ -30,7 +28,7 @@ class EtfClient(object):
             "etf_name":etf_name
         }
 
-        from huobi.service.etf.get_etf_swap_config import GetEtfSwapConfigService
+        from huobi import GetEtfSwapConfigService
         return GetEtfSwapConfigService(params).request(**self.__kwargs)
 
     def get_etf_swap_list(self, etf_name: 'str', offset: 'int', size: 'int') -> list:
@@ -49,7 +47,7 @@ class EtfClient(object):
             "limit" : size
         }
 
-        from huobi.service.etf.get_etf_swap_list import GetEtfSwapListService
+        from huobi import GetEtfSwapListService
         return GetEtfSwapListService(params).request(**self.__kwargs)
 
     def post_etf_swap_in(self, etf_name: 'str', amount: 'int') -> None:
@@ -68,7 +66,7 @@ class EtfClient(object):
             "amount" : amount
         }
 
-        from huobi.service.etf.post_etf_swap_in import PostEftSwapInService
+        from huobi import PostEftSwapInService
         return PostEftSwapInService(params).request(**self.__kwargs)
 
     def post_etf_swap_out(self, etf_name: 'str', amount: 'int') -> None:
@@ -88,6 +86,6 @@ class EtfClient(object):
             "amount": amount
         }
 
-        from huobi.service.etf.post_etf_swap_out import PostEtfSwapOutService
+        from huobi import PostEtfSwapOutService
         return PostEtfSwapOutService(params).request(**self.__kwargs)
 

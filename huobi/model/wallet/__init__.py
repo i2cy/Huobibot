@@ -1,0 +1,1 @@
+from huobi.model.wallet.deposit_history_item import DepositHistoryItem

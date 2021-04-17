@@ -1,5 +1,4 @@
 from huobi.client.market import MarketClient
-from huobi.constant import DepthStep
 from huobi.model.market import PriceDepth
 from huobi.utils.input_checker import *
 
@@ -40,7 +39,7 @@ class MarketClientPerformance(MarketClient):
             # "depth": depth_size
         }
 
-        from huobi.service.market.get_pricedepth import GetPriceDepthService
+        from huobi import GetPriceDepthService
         ret_data, req_cost, cost_manual = GetPriceDepthService(params).request(**self.__kwargs)
 
         if depth_size is not None:

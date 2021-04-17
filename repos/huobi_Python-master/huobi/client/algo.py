@@ -36,7 +36,7 @@ class AlgoClient(object):
 
         params = self.create_order_param_check(symbol, account_id, order_side, order_type, stop_price, order_price,
                                                order_size, order_value, time_in_force, trailing_rate, client_order_id)
-        from huobi.service.algo.post_create_order import PostCreateOrderService
+        from huobi import PostCreateOrderService
         return PostCreateOrderService(params).request(**self.__kwargs)
 
     def cancel_orders(self, client_order_ids) -> CancelOrderResult:
@@ -45,7 +45,7 @@ class AlgoClient(object):
         params = {
             "clientOrderIds": client_order_ids
         }
-        from huobi.service.algo.post_cancel_orders import PostCancelOrderService
+        from huobi import PostCancelOrderService
         return PostCancelOrderService(params).request(**self.__kwargs)
 
     def get_open_orders(self, account_id: 'str' = None, symbol: 'str' = None, order_side: 'OrderSide' = None,
@@ -61,7 +61,7 @@ class AlgoClient(object):
             "limit": limit,
             "fromId": from_id
         }
-        from huobi.service.algo.get_open_orders import GetOpenOrdersService
+        from huobi import GetOpenOrdersService
         return GetOpenOrdersService(params).request(**self.__kwargs)
 
     def get_order_history(self, symbol: 'str', order_status: 'AlgoOrderStatus', account_id: 'str' = None,
@@ -81,14 +81,14 @@ class AlgoClient(object):
             "limit": limit,
             "fromId": from_id
         }
-        from huobi.service.algo.get_order_history import GetOrderHistoryService
+        from huobi import GetOrderHistoryService
         return GetOrderHistoryService(params).request(**self.__kwargs)
 
     def get_order(self, client_order_id: 'str'):
         params = {
             "clientOrderId": client_order_id
         }
-        from huobi.service.algo.get_order_by_cid import GetOrderByClientOrderIdService
+        from huobi import GetOrderByClientOrderIdService
         return GetOrderByClientOrderIdService(params).request(**self.__kwargs)
 
     def create_order_param_check(self, symbol, account_id, order_side, order_type, stop_price, order_price,

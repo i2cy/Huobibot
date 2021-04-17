@@ -1,4 +1,3 @@
-from huobi.utils import *
 from huobi.constant import *
 from huobi.utils.input_checker import check_in_list
 
@@ -19,7 +18,7 @@ class SubuserClient(object):
         check_should_not_none(user_list, 'userList')
 
         params = user_list
-        from huobi.service.subuser.post_create_subuser import PostSubuserCreationService
+        from huobi import PostSubuserCreationService
         return PostSubuserCreationService(params).request(**self.__kwargs)
 
     def post_set_tradable_market(self, sub_uids, account_type: 'SubuserTradePrivilegeType',
@@ -37,7 +36,7 @@ class SubuserClient(object):
             'accountType': account_type,
             'activation': activation
         }
-        from huobi.service.subuser.post_tradable_market import PostTradableMarketService
+        from huobi import PostTradableMarketService
         return PostTradableMarketService(params).request(**self.__kwargs)
 
     def post_set_subuser_transferability(self, sub_uids: 'str', transferrable: 'bool',
@@ -51,7 +50,7 @@ class SubuserClient(object):
             "accountType": account_type,
             "transferrable": transferrable
         }
-        from huobi.service.subuser.post_set_transferability import PostSetSubuserTransferability
+        from huobi import PostSetSubuserTransferability
         return PostSetSubuserTransferability(params).request(**self.__kwargs)
 
     def post_subuser_apikey_generate(self, otp_token: 'str', sub_uid: 'int', note: 'str', permission: 'bool',
@@ -69,7 +68,7 @@ class SubuserClient(object):
             "permission": permission,
             "ipAddresses": ip_addresses
         }
-        from huobi.service.subuser.post_subuser_apikey_generation import PostSubuserApikeyGenerationService
+        from huobi import PostSubuserApikeyGenerationService
         return PostSubuserApikeyGenerationService(params).request(**self.__kwargs)
 
     def get_user_apikey_info(self, uid: 'str', access_key: 'str' = None):
@@ -79,7 +78,7 @@ class SubuserClient(object):
             "uid": uid,
             "accessKey": access_key
         }
-        from huobi.service.subuser.get_user_apikey_info import GetUserApikeyInfoService
+        from huobi import GetUserApikeyInfoService
         return GetUserApikeyInfoService(params).request(**self.__kwargs)
 
     def post_subuser_apikey_modification(self, sub_uid: 'str', access_key: 'str', note: 'str' = None,
@@ -94,7 +93,7 @@ class SubuserClient(object):
             "permission": permission,
             "ipAddresses": ip_addresses
         }
-        from huobi.service.subuser.post_subuser_apikey_modification import PostSubuserApikeyModificationService
+        from huobi import PostSubuserApikeyModificationService
         return PostSubuserApikeyModificationService(params).request(**self.__kwargs)
 
     def post_subuser_apikey_deletion(self, sub_uid: 'str', access_key: 'str'):
@@ -105,11 +104,11 @@ class SubuserClient(object):
             "subUid": sub_uid,
             "accessKey": access_key
         }
-        from huobi.service.subuser.post_subuser_apikey_deletion import PostSubuserApikeyDeletionService
+        from huobi import PostSubuserApikeyDeletionService
         return PostSubuserApikeyDeletionService(params).request(**self.__kwargs)
 
     def get_uid(self):
         params = {
         }
-        from huobi.service.subuser.get_uid import GetUidService
+        from huobi import GetUidService
         return GetUidService(params).request(**self.__kwargs)

@@ -1,5 +1,4 @@
 from huobi.utils.input_checker import *
-from huobi.model.wallet import *
 
 
 class WalletClient(object):
@@ -37,7 +36,7 @@ class WalletClient(object):
             "size": size
         }
 
-        from huobi.service.wallet.get_deposit_withdraw import GetDepositWithdrawService
+        from huobi import GetDepositWithdrawService
         return GetDepositWithdrawService(params).request(**self.__kwargs)
 
     def post_create_withdraw(self, address: 'str', amount: 'float', currency: 'str', fee: 'float',
@@ -67,7 +66,7 @@ class WalletClient(object):
             "addr-tag": address_tag
         }
 
-        from huobi.service.wallet.post_create_withdraw import PostCreateWithdrawService
+        from huobi import PostCreateWithdrawService
         return PostCreateWithdrawService(params).request(**self.__kwargs)
 
     def post_cancel_withdraw(self, withdraw_id: 'int') -> int:
@@ -81,7 +80,7 @@ class WalletClient(object):
             "withdraw-id": withdraw_id
         }
 
-        from huobi.service.wallet.post_cancel_withdraw import PostCancelWithdrawService
+        from huobi import PostCancelWithdrawService
         return PostCancelWithdrawService(params).request(**self.__kwargs)
 
     def get_account_deposit_address(self, currency: 'str') -> list:
@@ -97,7 +96,7 @@ class WalletClient(object):
             "currency": currency
         }
 
-        from huobi.service.wallet.get_account_deposit_address import GetAccountDepositAddressService
+        from huobi import GetAccountDepositAddressService
         return GetAccountDepositAddressService(params).request(**self.__kwargs)
 
     def get_account_withdraw_quota(self, currency: 'str') -> list:
@@ -113,7 +112,7 @@ class WalletClient(object):
             "currency": currency,
         }
 
-        from huobi.service.wallet.get_account_withdraw_quota import GetAccountWithdrawQuotaService
+        from huobi import GetAccountWithdrawQuotaService
         return GetAccountWithdrawQuotaService(params).request(**self.__kwargs)
 
     def get_sub_user_deposit_history(self, sub_uid: 'int', currency: 'str' = None,
@@ -142,7 +141,7 @@ class WalletClient(object):
             "fromId": from_id
         }
 
-        from huobi.service.wallet.get_sub_user_deposit_history import GetSubUserDepositHistoryService
+        from huobi import GetSubUserDepositHistoryService
         return GetSubUserDepositHistoryService(params).request(**self.__kwargs)
 
     def get_sub_user_deposit_address(self, sub_uid: 'int', currency: 'str') -> list:
@@ -161,7 +160,7 @@ class WalletClient(object):
             "currency": currency
         }
 
-        from huobi.service.wallet.get_sub_user_deposit_address import GetSubUserDepositAddressService
+        from huobi import GetSubUserDepositAddressService
         return GetSubUserDepositAddressService(params).request(**self.__kwargs)
 
     def get_account_withdraw_address(self, currency: 'str', chain: 'str'=None, note: 'str'=None, limit: 'int' = 100,
@@ -174,6 +173,6 @@ class WalletClient(object):
             "limit": limit,
             "fromid": fromid
         }
-        from huobi.service.wallet.get_account_withdraw_address import GetAccountWithdrawAddressService
+        from huobi import GetAccountWithdrawAddressService
         return GetAccountWithdrawAddressService(params).request(**self.__kwargs)
 
