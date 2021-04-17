@@ -1,0 +1,10 @@
+{
+  "monitoring_markets": [
+    "btcusdt",
+    "enjusdt",
+    "ethusdt",
+    "dogeusdt",
+    "filusdt"
+  ],
+  "database": "database/market.db"
+}
