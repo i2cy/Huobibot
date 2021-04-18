@@ -16,6 +16,7 @@ MARKET_CONFIG = "../configs/market.json"
 
 GMD_THREADS = {}
 
+
 class Updater:
 
     def __init__(self):

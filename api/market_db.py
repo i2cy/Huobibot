@@ -5,17 +5,22 @@
 # Created on: 2021/4/16
 
 import i2cylib.database.sqlite as sql
+from i2cylib.utils.path import path_fixer
 import json
 
 MARKET_CONFIG = "../configs/market.json"
 
+DB_GLOB = None
+
 class MarketDB:
 
-    def __init__(self):
-        with open(MARKET_CONFIG) as conf:
+    def __init__(self, config=MARKET_CONFIG):
+        path_fixer(config)
+        with open(config) as conf:
             config = json.load(conf)
         try:
             self.db_file = config["database"]
+            path_fixer(self.db_file)
             self.monitoring = config["monitoring_markets"]
             for i in range(len(self.monitoring)):
                 self.monitoring[i] = self.monitoring[i].upper()
@@ -130,3 +135,8 @@ class MarketDB:
 
         except Exception as err:
             raise Exception("failed to update data in database, {}".format(err))
+
+
+def init():
+    global DB_GLOB
+    DB_GLOB = MarketDB()

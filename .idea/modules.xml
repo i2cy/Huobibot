@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/Huobibot.iml" filepath="$PROJECT_DIR$/.idea/Huobibot.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../I2cylib/.idea/I2cylib.iml" filepath="$PROJECT_DIR$/../I2cylib/.idea/I2cylib.iml" />
     </modules>
   </component>
 </project>
