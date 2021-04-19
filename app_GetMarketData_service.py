@@ -13,19 +13,33 @@ from huobi.utils import *
 from api.market_db import *
 
 MARKET_CONFIG = "../configs/market.json"
+HUOBI_CONFIG = "../configs/huobi.json"
 
 GMD_THREADS = {}
 
+ECHO = None
+STATICS = {""}
+DATABASE = None
 
 class Updater:
 
-    def __init__(self):
-        with open(MARKET_CONFIG) as conf:
+    def __init__(self, market_config=MARKET_CONFIG, huobi_config=HUOBI_CONFIG):
+        with open(market_config) as conf:
             config = json.load(conf)
         try:
             self.monitoring = config["monitoring_markets"]
         except Exception as err:
             raise KeyError("failed to load market config, {}".format(err))
+
+        with open(huobi_config) as conf:
+            config = json.load(conf)
+        try:
+            self.url = config["api_url"]
+        except Exception as err:
+            raise KeyError("failed to load market config, {}".format(err))
+
+    def connect(self):
+        pass
 
 
 def init():

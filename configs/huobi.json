@@ -1,5 +1,6 @@
 {
   "api_key": "",
   "secret_key": "",
-  "api_url": "https://api.huobi.li"
+  "api_url": "https://api.huobi.li",
+  "update_freq": 8
 }
