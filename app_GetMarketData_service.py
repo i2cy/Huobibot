@@ -4,9 +4,13 @@
 # Filename: app_GetMarketData_service
 # Created on: 2021/4/16
 
+import sys
+import time
 import json
-from i2cylib.utils.path import path_fixer
+import threading
 
+from i2cylib.utils.path import path_fixer
+from i2cylib.utils.stdout.echo import *
 from huobi.client.market import MarketClient
 from huobi.constant import *
 from huobi.utils import *
@@ -23,7 +27,12 @@ DATABASE = None
 
 class Updater:
 
-    def __init__(self, market_config=MARKET_CONFIG, huobi_config=HUOBI_CONFIG):
+    def __init__(self, market_config=MARKET_CONFIG,
+                 huobi_config=HUOBI_CONFIG, watchdog_threshold=10,
+                 db_api = None):
+        path_fixer(market_config)
+        path_fixer(huobi_config)
+
         with open(market_config) as conf:
             config = json.load(conf)
         try:
@@ -38,16 +47,73 @@ class Updater:
         except Exception as err:
             raise KeyError("failed to load market config, {}".format(err))
 
-    def connect(self):
-        pass
+        self.live = False
+        self.food = watchdog_threshold
+        self.watchdog_threshold = watchdog_threshold
+        self.watchdog_int_flag = False
+        self.db_api = db_api
+
+    def __safety_check__(self):
+        if self.db_api is None:
+            raise Exception("database api has not connected yet")
+
+    def __watchdog_int__(self):
+        ECHO.print("[watchdog] warning: watchdog timeout, interrupting...")
+
+    def __watchdog_thread__(self):
+        while self.live:
+            if self.food <= 0:
+                if not self.watchdog_int_flag:
+                    self.__watchdog_int__()
+                self.watchdog_int_flag = True
+            else:
+                self.watchdog_int_flag = False
+            time.sleep(0.1)
+            self.food -= 0.1
+
+    def __updater_thread__(self, trade_name):
+        tick = 0
+        while self.live:
+            self.watchdog_block()
+
+    def watchdog_block(self):
+        while self.watchdog_int_flag:
+            time.sleep(0.01)
+
+    def watchdog_feed(self):
+        self.food = self.watchdog_threshold
+
+    def bind_dbapi(self, db_api):
+        self.db_api = db_api
+
+    def start(self):
+        self.live = True
+        watchdog = threading.Thread(target=self.__watchdog_thread__)
+        watchdog.start()
+
+    def stop(self):
+        self.live = False
 
 
 def init():
-    pass
+    global ECHO, DATABASE
+    header = "[init]"
+    ECHO = Echo()
+    ECHO.buttom_print("initializing...")
+    try:
+        DATABASE = MarketDB()
+    except Exception as err:
+        ECHO.print("{} {}, exiting".format(header, err))
+        sys.exit(1)
+    ECHO.print("{} market database fully connected".format(header))
+
+    ECHO.print("{} initialized".format(header))
 
 
 def main():
-    pass
+    header = "[main]"
+    ECHO.print("{} ")
+
 
 
 if __name__ == '__main__':

@@ -5,7 +5,7 @@
 # Created on: 2021/4/16
 
 import i2cylib.database.sqlite as sql
-from i2cylib.utils.path import path_fixer
+from i2cylib.utils.path.path_fixer import *
 import json
 
 MARKET_CONFIG = "../configs/market.json"
@@ -135,6 +135,9 @@ class MarketDB:
 
         except Exception as err:
             raise Exception("failed to update data in database, {}".format(err))
+
+    def close(self):
+        self.db.close()
 
 
 def init():
