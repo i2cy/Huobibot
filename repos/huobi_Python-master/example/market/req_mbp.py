@@ -1,6 +1,7 @@
 from huobi.client.market import MarketClient
 from huobi.constant import *
 
+temp = {}
 
 def callback(mbp_event: 'MbpIncreaseEvent'):
     mbp_event.print_object()

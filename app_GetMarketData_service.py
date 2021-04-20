@@ -48,9 +48,9 @@ class Updater:
             raise KeyError("failed to load market config, {}".format(err))
 
         self.live = False
-        self.food = watchdog_threshold
+        self.food = {}
         self.watchdog_threshold = watchdog_threshold
-        self.watchdog_int_flag = False
+        self.watchdog_int_flag = {}
         self.db_api = db_api
 
         self.market_buff = {"timestamp": 0,
@@ -78,39 +78,47 @@ class Updater:
     def __watchdog_int__(self):
         ECHO.print("[watchdog] warning: watchdog timeout, interrupting...")
 
-    def __watchdog_thread__(self):
+    def __watchdog_thread__(self, index):
+        self.watchdog_int_flag.update({index: False})
         while self.live:
             if self.food <= 0:
-                if not self.watchdog_int_flag:
-                    self.__watchdog_int__()
-                self.watchdog_int_flag = True
+                if not self.watchdog_int_flag[index]:
+                    self.__watchdog_int__(index)
+                self.watchdog_int_flag[index] = True
             else:
-                self.watchdog_int_flag = False
+                self.watchdog_int_flag[index] = False
             time.sleep(0.1)
             self.food -= 0.1
 
-    def __updater_thread__(self):
+    def __updater_thread__(self, trade_name):
         tick = 0
         while self.live:
-            self.watchdog_block()
+            self.watchdog_block(trade_name)
             if tick >= 5:
-                pass  # do update
+                huobi_market = MarketClient(url=self.url)
+                kline = huobi_market.get_candlestick(trade_name,
+                                                     CandlestickInterval.MIN1,
+                                                     2)
+
+
             tick += 1
 
-    def watchdog_block(self):
-        while self.watchdog_int_flag:
+    def watchdog_block(self, index):
+        while self.watchdog_int_flag[index]:
             time.sleep(0.01)
 
-    def watchdog_feed(self):
-        self.food = self.watchdog_threshold
+    def watchdog_feed(self, index):
+        self.food.update({index: self.watchdog_threshold})
 
     def bind_dbapi(self, db_api):
         self.db_api = db_api
 
     def start(self):
         self.live = True
-        watchdog = threading.Thread(target=self.__watchdog_thread__)
-        watchdog.start()
+        for name in self.monitoring:
+            watchdog = threading.Thread(target=self.__watchdog_thread__,
+                                        args=(name,))
+            watchdog.start()
 
     def stop(self):
         self.live = False
@@ -134,7 +142,6 @@ def init():
 def main():
     header = "[main]"
     ECHO.print("{} ")
-
 
 
 if __name__ == '__main__':

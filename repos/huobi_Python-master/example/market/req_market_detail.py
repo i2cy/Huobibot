@@ -8,5 +8,5 @@ def callback(obj_event: 'MarketDetailReq'):
     print()
 
 
-sub_client = MarketClient()
+sub_client = MarketClient(url="https://api.huobi.li")
 sub_client.req_market_detail("btcusdt", callback)
