@@ -8,7 +8,7 @@ import i2cylib.database.sqlite as sql
 from i2cylib.utils.path.path_fixer import *
 import json
 
-MARKET_CONFIG = "../configs/market.json"
+MARKET_CONFIG = "configs/market.json"
 
 DB_GLOB = None
 
@@ -47,25 +47,26 @@ class MarketDB:
         self.offsets = {}
 
         for ele in self.all_tablenames:
-            self.all_tables.update({ele: self.db.select_table(ele)})
-            self.offsets.update({ele: self.get_offset(ele)})
+            table = self.db.select_table(ele)
+            self.all_tables.update({ele: table})
+            self.offsets.update({ele: self.get_offset(table)})
 
     def get_offset(self, table_object):
         id = 0
         try:
             id = table_object[-1][0]
-        except KeyError:
+        except:
             pass
-        return id
+        return int(id)
 
     def get_db_info(self):
         info = self.db.list_all_tables()
         self.all_tablenames = info
         for ele in info:
             if ele.split("_")[0] == "MARKET":
-                self.markets.append(ele[1])
+                self.markets.append(ele.split("_")[1])
             elif ele.split("_")[0] == "CONTRACT":
-                self.contracts.append(ele[1])
+                self.contracts.append(ele.split("_")[1])
 
         return {"markets": self.markets, "contracts": self.contracts}
 
@@ -80,12 +81,15 @@ class MarketDB:
         table.add_column("KLINE_HIGH", sql.SqlDtype.REAL)
         table.add_column("KLINE_AMOUNT", sql.SqlDtype.REAL)
         table.add_column("KLINE_VOLUME", sql.SqlDtype.REAL)
-        table.add_column("EXCHANGE_TRADEID", sql.SqlDtype.INTEGER)
-        table.add_column("EXCHANGE_AMOUNT", sql.SqlDtype.REAL)
-        table.add_column("EXCHANGE_PRICE", sql.SqlDtype.REAL)
-        table.add_column("EXCHANGE_DIRECTION", sql.SqlDtype.INTEGER)
-        table.add_column("DEPTH_BUY", sql.SqlDtype.BLOB)
-        table.add_column("DEPTH_SELL", sql.SqlDtype.BLOB)
+        table.add_column("BUY_COUNT", sql.SqlDtype.INTEGER)
+        table.add_column("BUY_AMOUNT", sql.SqlDtype.REAL)
+        table.add_column("SELL_COUNT", sql.SqlDtype.INTEGER)
+        table.add_column("SELL_AMOUNT", sql.SqlDtype.REAL)
+        table.add_column("DEPTH_BUY0", sql.SqlDtype.BLOB)
+        table.add_column("DEPTH_SELL0", sql.SqlDtype.BLOB)
+        table.add_column("DEPTH_BUY5", sql.SqlDtype.BLOB)
+        table.add_column("DEPTH_SELL5", sql.SqlDtype.BLOB)
+        table.add_limit(0, sql.Sqlimit.PRIMARY_KEY)
         self.db.create_table(table)
 
     def create_contract_db(self, name):
@@ -99,27 +103,35 @@ class MarketDB:
         table.add_column("KLINE_HIGH", sql.SqlDtype.REAL)
         table.add_column("KLINE_AMOUNT", sql.SqlDtype.REAL)
         table.add_column("KLINE_VOLUME", sql.SqlDtype.REAL)
-        table.add_column("EXCHANGE_TRADEID", sql.SqlDtype.INTEGER)
-        table.add_column("EXCHANGE_AMOUNT", sql.SqlDtype.REAL)
-        table.add_column("EXCHANGE_PRICE", sql.SqlDtype.REAL)
-        table.add_column("EXCHANGE_DIRECTION", sql.SqlDtype.INTEGER)
-        table.add_column("DEPTH_BUY", sql.SqlDtype.BLOB)
-        table.add_column("DEPTH_SELL", sql.SqlDtype.BLOB)
+        table.add_column("BUY_COUNT", sql.SqlDtype.INTEGER)
+        table.add_column("BUY_AMOUNT", sql.SqlDtype.REAL)
+        table.add_column("SELL_COUNT", sql.SqlDtype.INTEGER)
+        table.add_column("SELL_AMOUNT", sql.SqlDtype.REAL)
+        table.add_column("DEPTH_BUY0", sql.SqlDtype.BLOB)
+        table.add_column("DEPTH_SELL0", sql.SqlDtype.BLOB)
+        table.add_column("DEPTH_BUY5", sql.SqlDtype.BLOB)
+        table.add_column("DEPTH_SELL5", sql.SqlDtype.BLOB)
+        table.add_limit(0, sql.Sqlimit.PRIMARY_KEY)
         self.db.create_table(table)
 
-    def fetch(self, start_ts, stop_ts=None):
-        if stop_ts is None:
-            stop_ts = start_ts + 1000
+    def fetch(self, start_ms, stop_ms=None):
+        start_ms = int(start_ms*1000)
+        if stop_ms is None:
+            stop_ms = start_ms + 1000
+        else:
+            stop_ms = int(stop_ms*1000)
         ret = {}
         for ele in self.monitoring:
             market_tab = self.all_tables["MARKET_{}".format(ele)]
             contract_tab = self.all_tables["CONTRACT_{}".format(ele)]
-            ret.update({ele: {"market": market_tab.get((start_ts, stop_ts), primary_index_column="TIMESTAMP"),
-                              "contract": contract_tab.get((start_ts, stop_ts), primary_index_column="TIMESTAMP")}})
+            ret.update({ele: {"market": market_tab.get((start_ms, stop_ms), primary_index_column="TIMESTAMP"),
+                              "contract": contract_tab.get((start_ms, stop_ms), primary_index_column="TIMESTAMP")}})
         return ret
 
     def update(self, db_name, data):
-        if len(data) < 15:
+        if isinstance(data, tuple):
+            data = list(data)
+        if len(data) < 16:
             offset = self.offsets[db_name] + 1
             data.insert(0, offset)
         else:

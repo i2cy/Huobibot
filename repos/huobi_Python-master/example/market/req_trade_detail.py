@@ -9,7 +9,9 @@ def callback(trade_req: 'TradeDetailReq'):
 
 
 
-market_client = MarketClient()
-market_client.req_trade_detail("btcusdt,eosusdt", callback)
+market_client = MarketClient(url="https://api.huobi.li")
+while True:
+    market_client.req_trade_detail("hbcusdt", callback)
+
 
 

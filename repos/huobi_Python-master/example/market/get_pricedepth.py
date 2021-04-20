@@ -3,10 +3,9 @@ from huobi.client.market import MarketClient
 from huobi.utils import *
 
 
-market_client = MarketClient()
+market_client = MarketClient(url="https://api.huobi.li")
 symbol = "btcusdt"
-depth_size = 6
-depth = market_client.get_pricedepth(symbol, DepthStep.STEP0, depth_size)
+depth = market_client.get_pricedepth(symbol, DepthStep.STEP0)
 LogInfo.output("---- Top {size} bids ----".format(size=len(depth.bids)))
 i = 0
 for entry in depth.bids:

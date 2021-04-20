@@ -53,6 +53,24 @@ class Updater:
         self.watchdog_int_flag = False
         self.db_api = db_api
 
+        self.market_buff = {"timestamp": 0,
+                            "kline_excahngecount": 0,
+                            "kline_open": 0,
+                            "kline_close": 0,
+                            "kline_low": 0,
+                            "kline_high": 0,
+                            "kline_amount": 0,
+                            "kline_volume": 0,
+                            "buy_count": 0,
+                            "buy_amount": 0,
+                            "sell_count": 0,
+                            "sell_amount": 0,
+                            "depth_buy_0": None,
+                            "depth_sell_0": None,
+                            "depth_buy_5": None,
+                            "depth_sell_5": None
+                            }
+
     def __safety_check__(self):
         if self.db_api is None:
             raise Exception("database api has not connected yet")
@@ -71,10 +89,13 @@ class Updater:
             time.sleep(0.1)
             self.food -= 0.1
 
-    def __updater_thread__(self, trade_name):
+    def __updater_thread__(self):
         tick = 0
         while self.live:
             self.watchdog_block()
+            if tick >= 5:
+                pass  # do update
+            tick += 1
 
     def watchdog_block(self):
         while self.watchdog_int_flag:
@@ -99,7 +120,7 @@ def init():
     global ECHO, DATABASE
     header = "[init]"
     ECHO = Echo()
-    ECHO.buttom_print("initializing...")
+    ECHO.print("initializing...")
     try:
         DATABASE = MarketDB()
     except Exception as err:
