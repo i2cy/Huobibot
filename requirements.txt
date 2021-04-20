@@ -1,2 +1,6 @@
-tensorflow
-i2cylib
+APScheduler==3.6.3
+requests==2.20.1
+aiohttp==3.6.2
+websocket_client==0.57.0
+tensorflow==2.4.0
+i2cylib==1.1.0
