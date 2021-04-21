@@ -147,14 +147,15 @@ class MarketDB:
     def __watchdog_thread__(self):
         while self.live:
             for ele in self.buffer.keys():
-                if len(self.buffer[ele]) > 100:
-                    self.echo("[database] [ele] warning: database buffer size is now over 100,"
+                if len(self.buffer[ele]) > 5:
+                    self.echo("[database] [ele] warning: database buffer size is now over 5,"
                               " please slow down updating")
             time.sleep(0.2)
 
     def __updater_thread__(self):
         db_api = sql.SqliteDB(self.db_file)
         db_api.connect()
+        db_api.switch_autocommit()
         all_tables = {}
 
         for ele in self.all_tablenames:
@@ -169,6 +170,7 @@ class MarketDB:
             time.sleep(0.01)
 
     def __update__(self, db_name, data, all_tables):
+        #self.echo("[database] [debug] updating data in {}".format(db_name))
         if isinstance(data, tuple):
             data = list(data)
         if len(data) < 21:

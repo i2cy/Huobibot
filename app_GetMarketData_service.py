@@ -53,16 +53,28 @@ class Updater:
         self.watchdog_int_flag = {}
         self.db_api = db_api
         self.statics = {}
+        self.timestamp_offset = 0
+        gen_clt = GenericClient(url=self.url, timeout=8)
+        for i in range(50):
+            cloud_ts = gen_clt.get_exchange_timestamp()
+            self.timestamp_offset -= self.get_timestamp() - cloud_ts
+        ECHO.print("[updater] [init] info: timestamp offset fixing: {}".format(self.timestamp_offset))
+        cloud_ts = GenericClient(url=self.url, timeout=8).get_exchange_timestamp()
+        fixed_ts = self.get_timestamp()
+        ECHO.print("[updater] [init] debug: huobi cloud timestamp: {}, fixed timestamp: {}".format(
+            cloud_ts, self.get_timestamp()
+        ))
 
         for ele in self.monitoring:
-            self.statics.update({ele.upper: {"price": 0}})
+            self.statics.update({ele.upper(): {"price": 0,
+                                               "avg_cost_1min": 0.0}})
 
     def __safety_check__(self):
         if self.db_api is None:
             raise Exception("database api has not connected yet")
 
     def __watchdog_int__(self, index, timeout):
-        timestamp = int(time.time()*1000)
+        timestamp = self.get_timestamp()
         ECHO.print("[watchdog] [{}] [{}] warning: watchdog timeout ({} second(s)),"
                    " interrupting...".format(index, timestamp, timeout))
         self.watchdog_feed(index)
@@ -129,21 +141,15 @@ class Updater:
         return [buy_count, buy_amount, buy_max, buy_min,
                 sell_count, sell_amount, sell_max, sell_min], trade_id
 
-
     def __updater_thread__(self, trade_name):
-        tick = 0
         last_tradeid = 0
         huobi_market = None
-        huobi_generic = None
         while self.live:
             if huobi_market is None:
-                huobi_market = MarketClient(url=self.url)
-            if huobi_generic is None:
-                huobi_generic = GenericClient(url=self.url)
+                huobi_market = MarketClient(url=self.url, timeout=8)
             t = time.time()
-            timestamp = int(time.time() * 1000)
+            timestamp = self.get_timestamp()
             try:
-                timestamp = huobi_generic.get_exchange_timestamp()
                 kline = huobi_market.get_candlestick(trade_name,
                                                      CandlestickInterval.MIN1,
                                                      2)
@@ -157,6 +163,7 @@ class Updater:
                 trades, last_tradeid = self.__decode_trades__(trades, trade_name, last_tradeid)
 
                 database_name = trade_name.upper()
+                self.statics[database_name]["price"] = kline[0].close
                 self.db_api.update(database_name, [timestamp,
                                                 kline[0].count,
                                                 kline[0].open,
@@ -181,19 +188,33 @@ class Updater:
                 self.watchdog_feed(trade_name)
 
                 # debug test
-                ECHO.print("[updater] [{}] [{}] debug: update cost {} seconds".format(trade_name,
-                                                                                   timestamp,
-                                                                                   time.time()-t))
+                if self.statics[database_name]["avg_cost_1min"] == 0:
+                    self.statics[database_name]["avg_cost_1min"] = time.time()-t
+                else:
+                    self.statics[database_name]["avg_cost_1min"] = (self.statics[database_name]["avg_cost_1min"] * 59 +\
+                                                                   (time.time()-t)) / 60
+                #ECHO.print("[updater] [{}] [{}] debug: update cost {} seconds".format(trade_name,
+                #                                                                   timestamp,
+                #                                                                   time.time()-t))
             except Exception as err:
                 huobi_market = None
                 ECHO.print("[updater] [{}] [{}] error: {}".format(trade_name,
-                                                                  timestamp,
+                                                                  self.get_timestamp(),
                                                                   err))
             self.watchdog_block(trade_name)
 
+    def get_timestamp(self):
+        return int(time.time() * 1000 + self.timestamp_offset)
+
     def watchdog_block(self, index):
+        blocked = False
         while self.watchdog_int_flag[index]:
+            if not blocked:
+                blocked = True
+                ECHO.print("[watchdog] [{}] [{}] interrupted".format(index, self.get_timestamp()))
             time.sleep(0.01)
+        if blocked:
+            ECHO.print("[watchdog] [{}] [{}] released".format(index, self.get_timestamp()))
 
     def watchdog_feed(self, index):
         self.food.update({index: self.watchdog_threshold})
@@ -238,9 +259,23 @@ def main():
     ECHO.print("{} starting updater service...".format(header))
     updater = Updater(db_api=DATABASE)
     updater.start()
+    tick = 0
+    cursor = 0
     try:
         while True:
+            msg = "{}".format(time.strftime("%H:%M:%S"))
+            if tick % 5 == 0:
+                cursor += 1
+                if cursor >= len(updater.monitoring):
+                    cursor = 0
+            msg += "    {}    price: {} USDT".format(updater.monitoring[cursor].upper(),
+                                                     updater.statics[updater.monitoring[cursor].upper()]["price"])
+            if tick > 60:
+                msg += "    update cost: {:.2f}s".format(updater.statics[updater.monitoring[cursor].upper()]
+                                                         ["avg_cost_1min"])
+            ECHO.buttom_print(msg)
             time.sleep(1)
+            tick += 1
     except KeyboardInterrupt:
         ECHO.print("{} keyboard interrupt received, stopping...".format(header))
         updater.stop()
