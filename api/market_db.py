@@ -83,12 +83,16 @@ class MarketDB:
         table.add_column("KLINE_VOLUME", sql.SqlDtype.REAL)
         table.add_column("BUY_COUNT", sql.SqlDtype.INTEGER)
         table.add_column("BUY_AMOUNT", sql.SqlDtype.REAL)
+        table.add_column("BUY_MAX", sql.SqlDtype.REAL)
+        table.add_column("BUY_MIN", sql.SqlDtype.REAL)
         table.add_column("SELL_COUNT", sql.SqlDtype.INTEGER)
         table.add_column("SELL_AMOUNT", sql.SqlDtype.REAL)
-        table.add_column("DEPTH_BUY0", sql.SqlDtype.BLOB)
-        table.add_column("DEPTH_SELL0", sql.SqlDtype.BLOB)
-        table.add_column("DEPTH_BUY5", sql.SqlDtype.BLOB)
-        table.add_column("DEPTH_SELL5", sql.SqlDtype.BLOB)
+        table.add_column("SELL_MAX", sql.SqlDtype.REAL)
+        table.add_column("SELL_MIN", sql.SqlDtype.REAL)
+        table.add_column("DEPTH_BUY0", sql.SqlDtype.TEXT)
+        table.add_column("DEPTH_SELL0", sql.SqlDtype.TEXT)
+        table.add_column("DEPTH_BUY5", sql.SqlDtype.TEXT)
+        table.add_column("DEPTH_SELL5", sql.SqlDtype.TEXT)
         table.add_limit(0, sql.Sqlimit.PRIMARY_KEY)
         self.db.create_table(table)
 
@@ -105,12 +109,16 @@ class MarketDB:
         table.add_column("KLINE_VOLUME", sql.SqlDtype.REAL)
         table.add_column("BUY_COUNT", sql.SqlDtype.INTEGER)
         table.add_column("BUY_AMOUNT", sql.SqlDtype.REAL)
+        table.add_column("BUY_MAX", sql.SqlDtype.REAL)
+        table.add_column("BUY_MIN", sql.SqlDtype.REAL)
         table.add_column("SELL_COUNT", sql.SqlDtype.INTEGER)
         table.add_column("SELL_AMOUNT", sql.SqlDtype.REAL)
-        table.add_column("DEPTH_BUY0", sql.SqlDtype.BLOB)
-        table.add_column("DEPTH_SELL0", sql.SqlDtype.BLOB)
-        table.add_column("DEPTH_BUY5", sql.SqlDtype.BLOB)
-        table.add_column("DEPTH_SELL5", sql.SqlDtype.BLOB)
+        table.add_column("SELL_MAX", sql.SqlDtype.REAL)
+        table.add_column("SELL_MIN", sql.SqlDtype.REAL)
+        table.add_column("DEPTH_BUY0", sql.SqlDtype.TEXT)
+        table.add_column("DEPTH_SELL0", sql.SqlDtype.TEXT)
+        table.add_column("DEPTH_BUY5", sql.SqlDtype.TEXT)
+        table.add_column("DEPTH_SELL5", sql.SqlDtype.TEXT)
         table.add_limit(0, sql.Sqlimit.PRIMARY_KEY)
         self.db.create_table(table)
 
@@ -131,7 +139,7 @@ class MarketDB:
     def update(self, db_name, data):
         if isinstance(data, tuple):
             data = list(data)
-        if len(data) < 16:
+        if len(data) < 21:
             offset = self.offsets[db_name] + 1
             data.insert(0, offset)
         else:

@@ -3,6 +3,7 @@ from huobi.utils import *
 
 market_client = MarketClient(url="https://api.huobi.li")
 
-while True:
-    list_obj = market_client.get_history_trade("btcusdt", 200)
-    LogInfo.output_list(list_obj)
+list_obj = market_client.get_history_trade("dogeusdt", 2000)
+LogInfo.output_list(list_obj)
+print(list_obj[0].trade_id)
+print(list_obj[0].direction, type(list_obj[0].direction))
