@@ -7,14 +7,21 @@
 import i2cylib.database.sqlite as sql
 from i2cylib.utils.path.path_fixer import *
 import json
+import time
+import threading
 
 MARKET_CONFIG = "configs/market.json"
 
 DB_GLOB = None
 
+
+def db_echo(msg):
+    print(msg)
+
+
 class MarketDB:
 
-    def __init__(self, config=MARKET_CONFIG):
+    def __init__(self, config=MARKET_CONFIG, echo=db_echo):
         path_fixer(config)
         with open(config) as conf:
             config = json.load(conf)
@@ -29,27 +36,29 @@ class MarketDB:
         self.db = sql.SqliteDB(self.db_file)
         self.db.connect()
         self.db.switch_autocommit()
-        self.markets = []
-        self.contracts = []
+        #self.contracts = []
         self.all_tables = {}
         self.all_tablenames = []
+        self.echo = echo
+        self.offsets = {}
+        self.buffer = {}
+        self.live = False
 
         self.get_db_info()
 
         for ele in self.monitoring:
-            if not ele in self.markets:
+            if not ele.upper() in self.all_tablenames:
                 self.create_market_db(ele)
-            if not ele in self.contracts:
-                self.create_contract_db(ele)
+            #if not ele in self.contracts:
+            #    self.create_contract_db(ele)
 
         self.get_db_info()
-
-        self.offsets = {}
 
         for ele in self.all_tablenames:
             table = self.db.select_table(ele)
             self.all_tables.update({ele: table})
             self.offsets.update({ele: self.get_offset(table)})
+            self.buffer.update({ele.upper(): []})
 
     def get_offset(self, table_object):
         id = 0
@@ -62,16 +71,14 @@ class MarketDB:
     def get_db_info(self):
         info = self.db.list_all_tables()
         self.all_tablenames = info
-        for ele in info:
-            if ele.split("_")[0] == "MARKET":
-                self.markets.append(ele.split("_")[1])
-            elif ele.split("_")[0] == "CONTRACT":
-                self.contracts.append(ele.split("_")[1])
+            #elif ele.split("_")[0] == "CONTRACT":
+            #    self.contracts.append(ele.split("_")[1])
 
-        return {"markets": self.markets, "contracts": self.contracts}
+        #return {"markets": self.markets, "contracts": self.contracts}
+        return info
 
     def create_market_db(self, name):
-        table = sql.SqlTable("MARKET_{}".format(name))
+        table = sql.SqlTable("{}".format(name))
         table.add_column("ID", sql.SqlDtype.INTEGER)
         table.add_column("TIMESTAMP", sql.SqlDtype.INTEGER)
         table.add_column("KLINE_EXCHANGECOUNT", sql.SqlDtype.INTEGER)
@@ -130,13 +137,38 @@ class MarketDB:
             stop_ms = int(stop_ms*1000)
         ret = {}
         for ele in self.monitoring:
-            market_tab = self.all_tables["MARKET_{}".format(ele)]
-            contract_tab = self.all_tables["CONTRACT_{}".format(ele)]
-            ret.update({ele: {"market": market_tab.get((start_ms, stop_ms), primary_index_column="TIMESTAMP"),
-                              "contract": contract_tab.get((start_ms, stop_ms), primary_index_column="TIMESTAMP")}})
+            market_tab = self.all_tables["{}".format(ele)]
+            #contract_tab = self.all_tables["CONTRACT_{}".format(ele)]
+            ret.update({ele: {"market": market_tab.get((start_ms, stop_ms), primary_index_column="TIMESTAMP")}})
+            #ret.update({ele: {"market": market_tab.get((start_ms, stop_ms), primary_index_column="TIMESTAMP"),
+            #                  "contract": contract_tab.get((start_ms, stop_ms), primary_index_column="TIMESTAMP")}})
         return ret
 
-    def update(self, db_name, data):
+    def __watchdog_thread__(self):
+        while self.live:
+            for ele in self.buffer.keys():
+                if len(self.buffer[ele]) > 100:
+                    self.echo("[database] [ele] warning: database buffer size is now over 100,"
+                              " please slow down updating")
+            time.sleep(0.2)
+
+    def __updater_thread__(self):
+        db_api = sql.SqliteDB(self.db_file)
+        db_api.connect()
+        all_tables = {}
+
+        for ele in self.all_tablenames:
+            table = db_api.select_table(ele)
+            all_tables.update({ele: table})
+
+        while self.live:
+            for db_name in self.buffer.keys():
+                if len(self.buffer[db_name]) > 0:
+                    data = self.buffer[db_name].pop(0)
+                    self.__update__(db_name, data, all_tables)
+            time.sleep(0.01)
+
+    def __update__(self, db_name, data, all_tables):
         if isinstance(data, tuple):
             data = list(data)
         if len(data) < 21:
@@ -144,7 +176,7 @@ class MarketDB:
             data.insert(0, offset)
         else:
             offset = data[0]
-        tab = self.all_tables[db_name]
+        tab = all_tables[db_name]
 
         try:
             if offset > self.offsets[db_name]:
@@ -156,8 +188,18 @@ class MarketDB:
         except Exception as err:
             raise Exception("failed to update data in database, {}".format(err))
 
+    def update(self, db_name, data):
+        self.buffer[db_name].append(data)
+
     def close(self):
+        self.live = False
         self.db.close()
+
+    def start(self):
+        self.live = True
+        updater_thread = threading.Thread(target=self.__updater_thread__)
+        updater_thread.start()
+
 
 
 def init():
