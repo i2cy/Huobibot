@@ -130,11 +130,11 @@ class MarketDB:
         self.db.create_table(table)
 
     def fetch(self, start_ms, stop_ms=None):
-        start_ms = int(start_ms*1000)
+        start_ms = int(start_ms)
         if stop_ms is None:
             stop_ms = start_ms + 1000
         else:
-            stop_ms = int(stop_ms*1000)
+            stop_ms = int(stop_ms)
         ret = {}
         for ele in self.monitoring:
             market_tab = self.all_tables["{}".format(ele)]
