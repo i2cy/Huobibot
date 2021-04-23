@@ -6,7 +6,7 @@ import time
 
 from huobi.utils.print_mix_object import TypeCheck
 
-session = requests.Session()
+session = requests.Session(timeout=8)
 
 def check_response(dict_data):
     status = dict_data.get("status", None)

@@ -167,7 +167,7 @@ class Updater:
                 #api_callback = HuobiCallbacks(self)
                 kline = huobi_market.get_candlestick(trade_name,
                                                      CandlestickInterval.MIN1,
-                                                     2, timeout=8)
+                                                     2)
                 depth0 = huobi_market.get_pricedepth(trade_name, DepthStep.STEP0)
                 depth5 = huobi_market.get_pricedepth(trade_name, DepthStep.STEP5)
                 depth0_buy = json.dumps([[entry.price, entry.amount] for entry in depth0.bids])
