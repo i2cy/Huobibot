@@ -25,6 +25,19 @@ GMD_THREADS = {}
 ECHO = None
 DATABASE = None
 
+
+class HuobiGetData:
+
+    def __init__(self, upper):
+        self.upper = upper
+        self.buffer = {}
+
+    def kline_thread(self, trade_name):
+        self.upper
+
+
+
+
 class Updater:
 
     def __init__(self, market_config=MARKET_CONFIG,
@@ -54,6 +67,7 @@ class Updater:
         self.db_api = db_api
         self.statics = {}
         self.timestamp_offset = 0
+
         gen_clt = GenericClient(url=self.url, timeout=8)
         for i in range(50):
             cloud_ts = gen_clt.get_exchange_timestamp()
@@ -150,9 +164,10 @@ class Updater:
             t = time.time()
             timestamp = self.get_timestamp()
             try:
+                #api_callback = HuobiCallbacks(self)
                 kline = huobi_market.get_candlestick(trade_name,
                                                      CandlestickInterval.MIN1,
-                                                     2)
+                                                     2, timeout=8)
                 depth0 = huobi_market.get_pricedepth(trade_name, DepthStep.STEP0)
                 depth5 = huobi_market.get_pricedepth(trade_name, DepthStep.STEP5)
                 depth0_buy = json.dumps([[entry.price, entry.amount] for entry in depth0.bids])
@@ -161,6 +176,9 @@ class Updater:
                 depth5_sell = json.dumps([[entry.price, entry.amount] for entry in depth5.asks])
                 trades = huobi_market.get_history_trade(trade_name, 2000)
                 trades, last_tradeid = self.__decode_trades__(trades, trade_name, last_tradeid)
+
+
+
 
                 database_name = trade_name.upper()
                 self.statics[database_name]["price"] = kline[0].close
