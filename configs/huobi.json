@@ -1,6 +1,10 @@
 {
   "api_key": "",
   "secret_key": "",
-  "api_url": "http://api.huobi.li",
-  "update_freq": 8
+  "api_url": "http://api.huobi.pro",
+  "timeout": 5,
+  "proxies": {
+    "http": "127.0.0.1:1080",
+    "https": ""
+  }
 }
