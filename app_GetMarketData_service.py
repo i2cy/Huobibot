@@ -28,14 +28,100 @@ DATABASE = None
 
 class HuobiGetData:
 
-    def __init__(self, upper):
+    def __init__(self, upper, marketclient, trade_name):
         self.upper = upper
-        self.buffer = {}
+        self.buffer = [0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                       0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, 0.0,
+                       "", "", "", ""]
+        self.clt = marketclient
+        self.trade_name = trade_name
+        self.last_tradeid = 0
+        self.finished_flags = [False, False, False, False]
+        self.exception = None
 
-    def kline_thread(self, trade_name):
-        self.upper
+    def reset(self):
+        self.buffer = [0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                       0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, 0.0,
+                       "", "", "", ""]
+        self.finished_flags = [False, False, False, False]
+        self.exception = None
 
+    def kline_thread(self):
+        try:
+            kline = self.clt.get_candlestick(self.trade_name,
+                                             CandlestickInterval.MIN1,
+                                             2)
+            self.buffer[1] = kline[0].count
+            self.buffer[2] = kline[0].open
+            self.buffer[3] = kline[0].close
+            self.buffer[4] = kline[0].low
+            self.buffer[5] = kline[0].high
+            self.buffer[6] = kline[0].amount
+            self.buffer[7] = kline[0].vol
+        except Exception as err:
+            self.exception = err
+        self.finished_flags[0] = True
 
+    def depth0_thread(self):
+        try:
+            depth0 = self.clt.get_pricedepth(self.trade_name, DepthStep.STEP0)
+            depth0_buy = json.dumps([[entry.price, entry.amount] for entry in depth0.bids])
+            depth0_sell = json.dumps([[entry.price, entry.amount] for entry in depth0.asks])
+            self.buffer[16] = depth0_buy
+            self.buffer[17] = depth0_sell
+        except Exception as err:
+            self.exception = err
+        self.finished_flags[1] = True
+
+    def depth5_thread(self):
+        try:
+            depth5 = self.clt.get_pricedepth(self.trade_name, DepthStep.STEP5)
+            depth5_buy = json.dumps([[entry.price, entry.amount] for entry in depth5.bids])
+            depth5_sell = json.dumps([[entry.price, entry.amount] for entry in depth5.asks])
+            self.buffer[18] = depth5_buy
+            self.buffer[19] = depth5_sell
+        except Exception as err:
+            self.exception = err
+        self.finished_flags[2] = True
+
+    def trade_thread(self):
+        try:
+            trades = self.clt.get_history_trade(self.trade_name, 2000)
+            trades, self.last_tradeid = self.upper.__decode_trades__(trades,
+                                                                     self.trade_name,
+                                                                     self.last_tradeid)
+            self.buffer[8] = trades[0]
+            self.buffer[9] = trades[1]
+            self.buffer[10] = trades[2]
+            self.buffer[11] = trades[3]
+            self.buffer[12] = trades[4]
+            self.buffer[13] = trades[5]
+            self.buffer[14] = trades[6]
+            self.buffer[15] = trades[7]
+        except Exception as err:
+            self.exception = err
+        self.finished_flags[3] = True
+
+    def get(self):
+        t = time.time()
+        threads = [self.kline_thread,
+                   self.trade_thread,
+                   self.depth0_thread,
+                   self.depth5_thread]
+        self.reset()
+        self.buffer[0] = self.upper.get_timestamp()
+        for ele in threads:
+            threading.Thread(target=ele).start()
+        finished = self.finished_flags[0] + self.finished_flags[1]\
+                   + self.finished_flags[2] + self.finished_flags[3]
+        while finished < 4:
+            finished = self.finished_flags[0] + self.finished_flags[1] \
+                       + self.finished_flags[2] + self.finished_flags[3]
+            time.sleep(0.01)
+        if not self.exception is None:
+            raise self.exception
+
+        return int((time.time()-t)*1000), self.buffer
 
 
 class Updater:
@@ -80,17 +166,19 @@ class Updater:
         ))
 
         for ele in self.monitoring:
-            self.statics.update({ele.upper(): {"price": 0,
-                                               "avg_cost_1min": 0.0}})
+            self.statics.update({ele.upper(): {"price": -1,
+                                               "avg_cost_1min": 0.0,
+                                               "ping": 0}})
 
     def __safety_check__(self):
         if self.db_api is None:
             raise Exception("database api has not connected yet")
 
     def __watchdog_int__(self, index, timeout):
-        timestamp = self.get_timestamp()
         ECHO.print("[watchdog] [{}] [{}] warning: watchdog timeout ({} second(s)),"
-                   " interrupting...".format(index, timestamp, timeout))
+                   " interrupting...".format(index, time.strftime("%y-%m-%d %H:%M:%S" ,
+                                                                  time.localtime(self.get_timestamp()/1000)),
+                                             timeout))
         self.watchdog_feed(index)
 
     def __watchdog_thread__(self, index):
@@ -158,50 +246,20 @@ class Updater:
     def __updater_thread__(self, trade_name):
         last_tradeid = 0
         huobi_market = None
+        huobi_updater = None
         while self.live:
             if huobi_market is None:
-                huobi_market = MarketClient(url=self.url, timeout=8)
+                huobi_market = MarketClient(url=self.url)
+            if huobi_updater is None:
+                huobi_updater = HuobiGetData(self, huobi_market, trade_name)
             t = time.time()
             timestamp = self.get_timestamp()
             try:
-                #api_callback = HuobiCallbacks(self)
-                kline = huobi_market.get_candlestick(trade_name,
-                                                     CandlestickInterval.MIN1,
-                                                     2)
-                depth0 = huobi_market.get_pricedepth(trade_name, DepthStep.STEP0)
-                depth5 = huobi_market.get_pricedepth(trade_name, DepthStep.STEP5)
-                depth0_buy = json.dumps([[entry.price, entry.amount] for entry in depth0.bids])
-                depth0_sell = json.dumps([[entry.price, entry.amount] for entry in depth0.asks])
-                depth5_buy = json.dumps([[entry.price, entry.amount] for entry in depth5.bids])
-                depth5_sell = json.dumps([[entry.price, entry.amount] for entry in depth5.asks])
-                trades = huobi_market.get_history_trade(trade_name, 2000)
-                trades, last_tradeid = self.__decode_trades__(trades, trade_name, last_tradeid)
-
-
-
+                ping, api_callback = huobi_updater.get()
 
                 database_name = trade_name.upper()
-                self.statics[database_name]["price"] = kline[0].close
-                self.db_api.update(database_name, [timestamp,
-                                                kline[0].count,
-                                                kline[0].open,
-                                                kline[0].close,
-                                                kline[0].low,
-                                                kline[0].high,
-                                                kline[0].amount,
-                                                kline[0].vol,
-                                                trades[0],
-                                                trades[1],
-                                                trades[2],
-                                                trades[3],
-                                                trades[4],
-                                                trades[5],
-                                                trades[6],
-                                                trades[7],
-                                                depth0_buy,
-                                                depth0_sell,
-                                                depth5_buy,
-                                                depth5_sell])
+                self.statics[database_name]["price"] = api_callback[3]
+                self.db_api.update(database_name, api_callback)
 
                 self.watchdog_feed(trade_name)
 
@@ -211,13 +269,17 @@ class Updater:
                 else:
                     self.statics[database_name]["avg_cost_1min"] = (self.statics[database_name]["avg_cost_1min"] * 59 +\
                                                                    (time.time()-t)) / 60
+                self.statics[database_name]["ping"] = ping
                 #ECHO.print("[updater] [{}] [{}] debug: update cost {} seconds".format(trade_name,
                 #                                                                   timestamp,
                 #                                                                   time.time()-t))
             except Exception as err:
+                time.sleep(1)
                 huobi_market = None
+                huobi_updater = None
                 ECHO.print("[updater] [{}] [{}] error: {}".format(trade_name,
-                                                                  self.get_timestamp(),
+                                                                  time.strftime("%y-%m-%d %H:%M:%S" ,
+                                                                                time.localtime(self.get_timestamp()/1000)),
                                                                   err))
             self.watchdog_block(trade_name)
 
@@ -282,14 +344,16 @@ def main():
     try:
         while True:
             msg = "{}".format(time.strftime("%H:%M:%S"))
-            if tick % 5 == 0:
+            if tick % 8 == 0:
                 cursor += 1
                 if cursor >= len(updater.monitoring):
                     cursor = 0
-            msg += "    {}    price: {} USDT".format(updater.monitoring[cursor].upper(),
-                                                     updater.statics[updater.monitoring[cursor].upper()]["price"])
+            msg += "    {}    price: {} USDT    ping: {}ms".format(
+                updater.monitoring[cursor].upper(),
+                updater.statics[updater.monitoring[cursor].upper()]["price"],
+                updater.statics[updater.monitoring[cursor].upper()]["ping"])
             if tick > 60:
-                msg += "    update cost: {:.2f}s".format(updater.statics[updater.monitoring[cursor].upper()]
+                msg += "    average cost: {:.2f}s".format(updater.statics[updater.monitoring[cursor].upper()]
                                                          ["avg_cost_1min"])
             ECHO.buttom_print(msg)
             time.sleep(1)
