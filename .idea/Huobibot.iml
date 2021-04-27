@@ -5,6 +5,7 @@
     <orderEntry type="jdk" jdkName="Python 3.7 (TF2.4)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="I2cylib" />
+    <orderEntry type="module" module-name="CodyBot" />
   </component>
   <component name="PyDocumentationSettings">
     <option name="format" value="PLAIN" />
