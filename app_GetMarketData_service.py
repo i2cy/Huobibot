@@ -362,6 +362,7 @@ def main():
         ECHO.print("{} keyboard interrupt received, stopping...".format(header))
         updater.stop()
         DATABASE.close()
+        print("")
         sys.exit(0)
 
 
