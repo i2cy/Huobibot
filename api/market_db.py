@@ -170,7 +170,7 @@ class MarketDB:
                         self.__update__(db_name, data, all_tables)
                 time.sleep(0.01)
         except Exception as err:
-            self.echo.print("[database] error: {}".format(err))
+            self.echo("[database] error: {}".format(err))
             updater_thread = threading.Thread(target=self.__updater_thread__)
             updater_thread.start()
 
