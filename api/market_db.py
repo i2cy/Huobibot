@@ -148,8 +148,8 @@ class MarketDB:
         while self.live:
             for ele in self.buffer.keys():
                 if len(self.buffer[ele]) > 5:
-                    self.echo("[database] [ele] warning: database buffer size is now over 5,"
-                              " please slow down updating")
+                    self.echo("[database] [{}] warning: database buffer size is now over 5,"
+                              " please slow down updating".format(ele))
             time.sleep(0.2)
 
     def __updater_thread__(self):
@@ -158,16 +158,21 @@ class MarketDB:
         db_api.switch_autocommit()
         all_tables = {}
 
-        for ele in self.all_tablenames:
-            table = db_api.select_table(ele)
-            all_tables.update({ele: table})
+        try:
+            for ele in self.all_tablenames:
+                table = db_api.select_table(ele)
+                all_tables.update({ele: table})
 
-        while self.live:
-            for db_name in self.buffer.keys():
-                if len(self.buffer[db_name]) > 0:
-                    data = self.buffer[db_name].pop(0)
-                    self.__update__(db_name, data, all_tables)
-            time.sleep(0.01)
+            while self.live:
+                for db_name in self.buffer.keys():
+                    if len(self.buffer[db_name]) > 0:
+                        data = self.buffer[db_name].pop(0)
+                        self.__update__(db_name, data, all_tables)
+                time.sleep(0.01)
+        except Exception as err:
+            self.echo.print("[database] error: {}".format(err))
+            updater_thread = threading.Thread(target=self.__updater_thread__)
+            updater_thread.start()
 
     def __update__(self, db_name, data, all_tables):
         #self.echo("[database] [debug] updating data in {}".format(db_name))
