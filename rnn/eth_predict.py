@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import random
 import pathlib
 import json
+from api.market_db import *
 
 # 不使用GPU
 #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
@@ -22,13 +23,13 @@ if len(tf.config.list_physical_devices('GPU')) > 0:
     tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
 
 
-DATASET_DB = "../../DeepLearning/Datasets/captcha_CN/"      # 在此处修改数据集文件夹
+DATASET_DB = "../../DeepLearning/Datasets/captcha_CN/"      # 在此处修改数据集
 TEST_RATE = 0.05                                            # 测试集比例
 BATCH_SIZE = 10                                             # 批处理大小
 EPOCHES = 10                                                # 训练代数
 BUFF_RATE = 0.1                                             # 缓冲区大小指数
 LEARNING_RATE = 0.0001                                      # 学习率
-MODEL_FILE = "models/eth_market_model.h5"                   # 在此处修改神经网络模型文件
+MODEL_FILE = "rnn/models/eth_market_model.h5"                   # 在此处修改神经网络模型文件
 NAME = "CryptoCoinPrediction"
 
 CAPTCHA_CNN = None
