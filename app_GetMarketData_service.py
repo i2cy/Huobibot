@@ -112,7 +112,7 @@ class HuobiGetData:
         self.buffer[0] = self.upper.get_timestamp()
         for ele in threads:
             threading.Thread(target=ele).start()
-        finished = self.finished_flags[0] + self.finished_flags[1]\
+        finished = self.finished_flags[0] + self.finished_flags[1] \
                    + self.finished_flags[2] + self.finished_flags[3]
         while finished < 4:
             finished = self.finished_flags[0] + self.finished_flags[1] \
@@ -121,14 +121,14 @@ class HuobiGetData:
         if not self.exception is None:
             raise self.exception
 
-        return int((time.time()-t)*1000), self.buffer
+        return int((time.time() - t) * 1000), self.buffer
 
 
 class Updater:
 
     def __init__(self, market_config=MARKET_CONFIG,
-                 huobi_config=HUOBI_CONFIG, watchdog_threshold=15,
-                 db_api = None):
+                 huobi_config=HUOBI_CONFIG, watchdog_threshold=10,
+                 db_api=None):
         path_fixer(market_config)
         path_fixer(huobi_config)
 
@@ -142,9 +142,27 @@ class Updater:
         with open(huobi_config) as conf:
             config = json.load(conf)
         try:
-            self.url = config["api_url"]
+            self.timeout = config["timeout"]
+            self.url = config["api"]["url"]
+            self.fallback_url = config["fallback_api"]["url"]
+            if config["api"]["proxies"]["http"] == "" and config["api"]["proxies"]["https"] == "":
+                self.proxies = None
+            else:
+                if config["api"]["proxies"]["http"] == "":
+                    config["api"]["proxies"]["http"] = config["api"]["proxies"]["https"]
+                if config["api"]["proxies"]["https"] == "":
+                    config["api"]["proxies"]["https"] = config["api"]["proxies"]["http"]
+                self.proxies = config["api"]["proxies"]
+            if config["fallback_api"]["proxies"]["http"] == "" and config["fallback_api"]["proxies"]["https"] == "":
+                self.fallback_proxies = None
+            else:
+                if config["fallback_api"]["proxies"]["http"] == "":
+                    config["fallback_api"]["proxies"]["http"] = config["fallback_api"]["proxies"]["https"]
+                if config["fallback_api"]["proxies"]["https"] == "":
+                    config["fallback_api"]["proxies"]["https"] = config["fallback_api"]["proxies"]["http"]
+                self.fallback_proxies = config["fallback_api"]["proxies"]
         except Exception as err:
-            raise KeyError("failed to load market config, {}".format(err))
+            raise KeyError("failed to load huobi api config, {}".format(err))
 
         self.live = False
         self.food = {}
@@ -154,12 +172,24 @@ class Updater:
         self.statics = {}
         self.timestamp_offset = 0
 
-        gen_clt = GenericClient(url=self.url, timeout=8)
-        for i in range(50):
-            cloud_ts = gen_clt.get_exchange_timestamp()
-            self.timestamp_offset -= self.get_timestamp() - cloud_ts
+        try:
+            if self.proxies is None:
+                gen_clt = GenericClient(url=self.url, timeout=self.timeout)
+            else:
+                gen_clt = GenericClient(url=self.url, timeout=self.timeout, proxies=self.proxies)
+            for i in range(20):
+                cloud_ts = gen_clt.get_exchange_timestamp()
+                self.timestamp_offset -= (self.get_timestamp() - cloud_ts) * ((20 - i) / 20)
+        except:
+            if self.fallback_proxies is None:
+                gen_clt = GenericClient(url=self.fallback_url, timeout=self.timeout)
+            else:
+                gen_clt = GenericClient(url=self.fallback_url, timeout=self.timeout, proxies=self.fallback_proxies)
+                for i in range(20):
+                    cloud_ts = gen_clt.get_exchange_timestamp()
+                    self.timestamp_offset -= (self.get_timestamp() - cloud_ts) * ((20 - i) / 20)
         ECHO.print("[updater] [init] info: timestamp offset fixing: {}".format(self.timestamp_offset))
-        cloud_ts = GenericClient(url=self.url, timeout=8).get_exchange_timestamp()
+        cloud_ts = gen_clt.get_exchange_timestamp()
         fixed_ts = self.get_timestamp()
         ECHO.print("[updater] [init] debug: huobi cloud timestamp: {}, fixed timestamp: {}".format(
             cloud_ts, self.get_timestamp()
@@ -170,16 +200,52 @@ class Updater:
                                                "avg_cost_1min": 0.0,
                                                "ping": 0}})
 
+        self.fallbacked = False
+
     def __safety_check__(self):
         if self.db_api is None:
             raise Exception("database api has not connected yet")
 
+    def __fallback_thread__(self):
+        if self.proxies is None:
+            test_clt = MarketClient(url=self.url, timeout=5)
+        else:
+            test_clt = MarketClient(url=self.url, timeout=5, proxies=self.proxies)
+        testing = True
+        while testing:
+            if not self.live:
+                return
+            try:
+                test_clt.get_candlestick("btcusdt",
+                                         CandlestickInterval.MIN1,
+                                         2)
+                testing = False
+            except:
+                time.sleep(0.1)
+                continue
+        ECHO.print("[watchdog] [fallbacker] [{}] the original api url {} has recovered".format(
+            time.strftime("%y-%m-%d %H:%M:%S",
+                          time.localtime(self.get_timestamp() / 1000)),
+            self.url
+        ))
+        self.fallbacked = False
+
     def __watchdog_int__(self, index, timeout):
         ECHO.print("[watchdog] [{}] [{}] warning: watchdog timeout ({} second(s)),"
-                   " interrupting...".format(index, time.strftime("%y-%m-%d %H:%M:%S" ,
-                                                                  time.localtime(self.get_timestamp()/1000)),
+                   " interrupting...".format(index, time.strftime("%y-%m-%d %H:%M:%S",
+                                                                  time.localtime(self.get_timestamp() / 1000)),
                                              timeout))
-        self.watchdog_feed(index)
+        if self.fallbacked:
+            self.watchdog_feed(index)
+            pass
+        else:
+            self.fallbacked = True
+            self.watchdog_feed(index)
+            ECHO.print("[watchdog] [{}] fallback using url: {}".format(time.strftime("%y-%m-%d %H:%M:%S",
+                                                                                     time.localtime(
+                                                                                         self.get_timestamp() / 1000)),
+                                                                       self.fallback_url))
+            threading.Thread(target=self.__fallback_thread__).start()
 
     def __watchdog_thread__(self, index):
         self.watchdog_int_flag.update({index: False})
@@ -244,12 +310,31 @@ class Updater:
                 sell_count, sell_amount, sell_max, sell_min], trade_id
 
     def __updater_thread__(self, trade_name):
-        last_tradeid = 0
         huobi_market = None
         huobi_updater = None
+        fallback_status = self.fallbacked
         while self.live:
+            if fallback_status != self.fallbacked:
+                fallback_status = self.fallbacked
+                huobi_market = None
+                huobi_updater = None
             if huobi_market is None:
-                huobi_market = MarketClient(url=self.url)
+                if self.fallbacked:
+                    if self.fallback_proxies is None:
+                        huobi_market = MarketClient(url=self.fallback_url,
+                                                    timeout=self.timeout)
+                    else:
+                        huobi_market = MarketClient(url=self.fallback_url,
+                                                    proxies=self.fallback_proxies,
+                                                    timeout=self.timeout)
+                else:
+                    if self.proxies is None:
+                        huobi_market = MarketClient(url=self.url,
+                                                    timeout=self.timeout)
+                    else:
+                        huobi_market = MarketClient(url=self.url,
+                                                    proxies=self.proxies,
+                                                    timeout=self.timeout)
             if huobi_updater is None:
                 huobi_updater = HuobiGetData(self, huobi_market, trade_name)
             t = time.time()
@@ -265,12 +350,12 @@ class Updater:
 
                 # debug test
                 if self.statics[database_name]["avg_cost_1min"] == 0:
-                    self.statics[database_name]["avg_cost_1min"] = time.time()-t
+                    self.statics[database_name]["avg_cost_1min"] = time.time() - t
                 else:
-                    self.statics[database_name]["avg_cost_1min"] = (self.statics[database_name]["avg_cost_1min"] * 59 +\
-                                                                   (time.time()-t)) / 60
+                    self.statics[database_name]["avg_cost_1min"] = (self.statics[database_name]["avg_cost_1min"] * 59 + \
+                                                                    (time.time() - t)) / 60
                 self.statics[database_name]["ping"] = ping
-                #ECHO.print("[updater] [{}] [{}] debug: update cost {} seconds".format(trade_name,
+                # ECHO.print("[updater] [{}] [{}] debug: update cost {} seconds".format(trade_name,
                 #                                                                   timestamp,
                 #                                                                   time.time()-t))
             except Exception as err:
@@ -278,8 +363,9 @@ class Updater:
                 huobi_market = None
                 huobi_updater = None
                 ECHO.print("[updater] [{}] [{}] error: {}".format(trade_name,
-                                                                  time.strftime("%y-%m-%d %H:%M:%S" ,
-                                                                                time.localtime(self.get_timestamp()/1000)),
+                                                                  time.strftime("%y-%m-%d %H:%M:%S",
+                                                                                time.localtime(
+                                                                                    self.get_timestamp() / 1000)),
                                                                   err))
             self.watchdog_block(trade_name)
 
@@ -354,7 +440,7 @@ def main():
                 updater.statics[updater.monitoring[cursor].upper()]["ping"])
             if tick > 60:
                 msg += "    average cost: {:.2f}s".format(updater.statics[updater.monitoring[cursor].upper()]
-                                                         ["avg_cost_1min"])
+                                                          ["avg_cost_1min"])
             ECHO.buttom_print(msg)
             time.sleep(1)
             tick += 1
