@@ -26,6 +26,8 @@ class RestApiSyncClient(object):
         self.__server_url = kwargs.get("url", get_default_server_url(None))
         self.__init_log = kwargs.get("init_log", None)
         self.__performance_test = kwargs.get("performance_test", None)
+        self.__proxies = kwargs.get("proxies", None)
+        self.__timeout = kwargs.get("timeout", 5)
         if self.__init_log and self.__init_log:
             logger = logging.getLogger("huobi-client")
             logger.setLevel(level=logging.INFO)
@@ -118,14 +120,15 @@ class RestApiSyncClient(object):
     def request_process_product(self, method, url, params, parse):
         request = self.create_request(method, url, params, parse)
         if request:
-            return call_sync(request)
+            return call_sync(request, timeout=self.__timeout, proxies=self.__proxies)
 
         return None
 
     def request_process_performance(self, method, url, params, parse):
         request = self.create_request(method, url, params, parse)
         if request:
-            return call_sync_perforence_test(request)
+            return call_sync_perforence_test(request, timeout=self.__timeout, proxies=self.__proxies)
+            return call_sync_perforence_test(request, timeout=self.__timeout, proxies=self.__proxies)
 
         return None, 0, 0
 
@@ -141,14 +144,14 @@ class RestApiSyncClient(object):
     def request_process_post_batch_product(self, method, url, params, parse):
         request = self.create_request_post_batch(method, url, params, parse)
         if request:
-            return call_sync(request)
+            return call_sync(request, timeout=self.__timeout, proxies=self.__proxies)
 
         return None
 
     def request_process_post_batch_performance(self, method, url, params, parse):
         request = self.create_request_post_batch(method, url, params, parse)
         if request:
-            return call_sync_perforence_test(request)
+            return call_sync_perforence_test(request, timeout=self.__timeout, proxies=self.__proxies)
 
         return None, 0, 0
 

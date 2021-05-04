@@ -6,19 +6,12 @@ import time
 
 from huobi.utils.print_mix_object import TypeCheck
 
-import json
+#import json
 
-with open("configs/huobi.json", "r") as f:
-    conf = json.load(f)
-TIMEOUT = conf["timeout"]
-if conf["proxies"]["http"] == "" and conf["proxies"]["https"] == "":
-    PROXYIES = None
-else:
-    if conf["proxies"]["http"] == "":
-        conf["proxies"]["http"] = conf["proxies"]["https"]
-    if conf["proxies"]["https"] == "":
-        conf["proxies"]["https"] = conf["proxies"]["http"]
-    PROXYIES = conf["proxies"]
+#with open("configs/huobi.json", "r") as f:
+#    conf = json.load(f)
+#TIMEOUT = conf["timeout"]
+
 session = requests.Session()
 
 def check_response(dict_data):
@@ -60,15 +53,17 @@ def check_response(dict_data):
         raise HuobiApiException(HuobiApiException.RUNTIME_ERROR, "[Invoking] Status cannot be found in response.")
 
 
-def call_sync(request, is_checked=False):
+def call_sync(request, is_checked=False, **kwargs):
     # print("call_sync url : ", request.host + request.url)
+    proxies = kwargs.get("proxies", None)
+    timeout = kwargs.get("timeout", 5)
     if request.method == "GET":
-        if PROXYIES is None:
+        if proxies is None:
             response = session.get(request.host + request.url, headers=request.header,
-                                   timeout=TIMEOUT)
+                                   timeout=timeout)
         else:
             response = session.get(request.host + request.url, headers=request.header,
-                                   timeout=TIMEOUT, proxies=PROXYIES)
+                                   timeout=timeout, proxies=proxies)
         if is_checked is True:
             return response.text
         dict_data = json.loads(response.text, encoding="utf-8")
@@ -77,25 +72,27 @@ def call_sync(request, is_checked=False):
         return request.json_parser(dict_data)
 
     elif request.method == "POST":
-        if PROXYIES is None:
+        if proxies is None:
             response = session.post(request.host + request.url, data=json.dumps(request.post_body), headers=request.header,
-                                    timeout=TIMEOUT)
+                                    timeout=timeout)
         else:
             response = session.get(request.host + request.url, headers=request.header,
-                                   timeout=TIMEOUT, proxies=PROXYIES)
+                                   timeout=timeout, proxies=proxies)
         dict_data = json.loads(response.text, encoding="utf-8")
         # print("call_sync  === recv data : ", dict_data)
         check_response(dict_data)
         return request.json_parser(dict_data)
 
-def call_sync_perforence_test(request, is_checked=False):
+def call_sync_perforence_test(request, is_checked=False, **kwargs):
+    proxies = kwargs.get("proxies", None)
+    timeout = kwargs.get("timeout", 5)
     if request.method == "GET":
         inner_start_time = time.time()
         # print("call_sync_perforence_test url : ", request.host + request.url)
-        if PROXYIES is None:
-            response = session.get(request.host + request.url, headers=request.header, timeout=TIMEOUT)
+        if proxies is None:
+            response = session.get(request.host + request.url, headers=request.header, timeout=timeout)
         else:
-            response = session.get(request.host + request.url, headers=request.header, timeout=TIMEOUT, proxies=PROXYIES)
+            response = session.get(request.host + request.url, headers=request.header, timeout=timeout, proxies=proxies)
         #print("call_sync_perforence_test data :", response.text)
         inner_end_time = time.time()
         cost_manual = round(inner_end_time - inner_start_time, 6)
@@ -109,14 +106,14 @@ def call_sync_perforence_test(request, is_checked=False):
 
     elif request.method == "POST":
         inner_start_time = time.time()
-        if PROXYIES is None:
+        if proxies is None:
             response = session.post(request.host + request.url, data=json.dumps(request.post_body), headers=request.header,
-                                timeout=TIMEOUT)
+                                timeout=timeout)
         else:
             response = session.post(request.host + request.url, data=json.dumps(request.post_body),
                                     headers=request.header,
-                                    timeout=TIMEOUT,
-                                    proxies=PROXYIES)
+                                    timeout=timeout,
+                                    proxies=proxies)
         inner_end_time = time.time()
         cost_manual = round(inner_end_time - inner_start_time, 6)
         req_cost = response.elapsed.total_seconds()

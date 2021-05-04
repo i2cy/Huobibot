@@ -1,10 +1,19 @@
 {
   "api_key": "",
   "secret_key": "",
-  "api_url": "http://api.huobi.pro",
-  "timeout": 5,
-  "proxies": {
+  "api": {
+    "url": "http://api.huobi.li",
+    "proxies": {
+    "http": "",
+    "https": ""
+    }
+  },
+  "fallback_api": {
+    "url": "http://api.huobi.pro",
+    "proxies": {
     "http": "127.0.0.1:1080",
     "https": ""
-  }
+    }
+  },
+  "timeout": 5
 }
