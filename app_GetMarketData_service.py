@@ -275,7 +275,9 @@ class Updater:
             if last_tradeid != 0:
                 ECHO.print("[updater] [{}] [{}] warning: too many trade during this period (>2000),"
                            " trade id now: {}, the last recorded trade id: {}".format(tradename,
-                                                                                      timestamp,
+                                                                                      time.strftime("%y-%m-%d %H:%M:%S",
+                                                                                        time.localtime(
+                                                                                        self.get_timestamp() / 1000)),
                                                                                       trade_id,
                                                                                       last_tradeid))
         if trade[0].direction == "buy":
@@ -434,12 +436,12 @@ def main():
                 cursor += 1
                 if cursor >= len(updater.monitoring):
                     cursor = 0
-            msg += "    {}    price: {} USDT    ping: {}ms".format(
+            msg += "|{}   price: {} USDT   ping: {}ms".format(
                 updater.monitoring[cursor].upper(),
                 updater.statics[updater.monitoring[cursor].upper()]["price"],
                 updater.statics[updater.monitoring[cursor].upper()]["ping"])
             if tick > 60:
-                msg += "    average cost: {:.2f}s".format(updater.statics[updater.monitoring[cursor].upper()]
+                msg += "   average cost: {:.2f}s".format(updater.statics[updater.monitoring[cursor].upper()]
                                                           ["avg_cost_1min"])
             ECHO.buttom_print(msg)
             time.sleep(1)
