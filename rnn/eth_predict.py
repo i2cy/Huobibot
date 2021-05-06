@@ -9,7 +9,10 @@ import matplotlib.pyplot as plt
 import random
 import pathlib
 import json
+import pandas as pd
 from api.market_db import *
+from i2cylib.utils.path.path_fixer import *
+from i2cylib.utils.stdout.echo import *
 
 # 不使用GPU
 #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
@@ -23,18 +26,15 @@ if len(tf.config.list_physical_devices('GPU')) > 0:
     tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
 
 
-DATASET_DB = "../../DeepLearning/Datasets/captcha_CN/"      # 在此处修改数据集
 TEST_RATE = 0.05                                            # 测试集比例
 BATCH_SIZE = 10                                             # 批处理大小
 EPOCHES = 10                                                # 训练代数
 BUFF_RATE = 0.1                                             # 缓冲区大小指数
 LEARNING_RATE = 0.0001                                      # 学习率
-MODEL_FILE = "rnn/models/eth_market_model.h5"                   # 在此处修改神经网络模型文件
+MODEL_FILE = "models/eth_market_model.h5"               # 在此处修改神经网络模型文件
 NAME = "CryptoCoinPrediction"
 
-CAPTCHA_CNN = None
-
-LABEL_TO_WORD = {}
+ETH_RNN = None
 
 
 class customNN:
@@ -384,6 +384,7 @@ def read_preprocess_image_from_raw(img):
 
 
 class predictor:
+
     def __init__(self, dnn):
         self.dnn = dnn
         self.labels_converter = []
@@ -415,36 +416,98 @@ class predictor:
         return res
 
 
-def path_fixer(path): # path checker
-    chk = ""
-    for i in path:
-        chk += i
-        if i in ("/", "\\"):
-            if not os.path.exists(chk):
-                os.mkdir(chk)
+class DatasetBase:
+
+    def __init__(self, market_db_api, sample_time_ms=3000, set_size=20*15, echo=None):
+        if not isinstance(market_db_api, MarketDB):
+            raise TypeError("market database API must be a MarketDB object")
+        if echo is None:
+            echo = self.__internal_echo__
+        self.echo = echo
+        self.db_api = market_db_api
+        self.sample_time = sample_time_ms
+        self.set_size = set_size
+        self.index_batches = pd.DataFrame(None, columns=["TS"] + self.db_api.monitoring)
+        self.index_features = pd.DataFrame(None, columns=["TS"] + self.db_api.monitoring)
+        self.index_labels = pd.DataFrame(None, columns=["TS"] + self.db_api.monitoring)
+
+    def __internal_echo__(self, msg):
+        pass
+
+    def __len__(self):
+        return len(self.index_features)
+
+    def __fetch__(self, start_ts):
+        ret = {}
+        for i in self.db_api.monitoring:
+            ret.update({i: []})
+        data = self.db_api.fetch(start_ts, start_ts + self.sample_time)
+        for i in data.keys():
+            if not data[i]["market"]:
+                ret = None
+                break
+            else:
+                ret[i].append([ele[0] for ele in data[i]["market"]])
+        return ret
+
+    def init_dataset(self):
+        start_ts = 0
+        end_ts = time.time()*1000
+        for dbn in self.db_api.all_tables.keys():
+            db = self.db_api.all_tables[dbn]
+            sts = db[0][1]
+            ets = db[-1][1]
+            if sts > start_ts:
+                start_ts = sts
+            if end_ts > ets:
+                end_ts = ets
+        self.echo("[database] fetching data between {} to {}".format(
+            time.strftime("%y-%m-%d %H:%M:%S", time.localtime(start_ts / 1000)),
+            time.strftime("%y-%m-%d %H:%M:%S", time.localtime(end_ts / 1000))
+        ))
+        offset = start_ts
+        while offset <= end_ts:
+            data = self.__fetch__(offset)
+            if data is None:
+                continue
+            else:
+                data.update({"TS": offset})
+                self.index_batches.append(data, ignore_index=True)
+            offset += self.sample_time
+
+        self.echo("[database] proceed {} samples".format(len(self.index_batches)))
+
+        for index, ele in enumerate(self.index_batches.iloc[:-(2*self.set_size)]):
+            sample = self.index_batches.iloc[index: index+2*self.set_size]
+            valid = True
+            for i, e in enumerate(sample.iloc[:-1]):
+                if e["TS"] + self.sample_time != sample.iloc[i+1]["TS"]:
+                    valid = False
+                    break
+            if not valid:
+                continue
+            feature_set = self.index_batches.iloc[index: index+self.set_size]
+            label_set = self.index_batches.iloc[index+self.set_size: index+2*self.set_size]
+            self.index_features.append(feature_set, ignore_index=True)
+            self.index_labels.append(label_set, ignore_index=True)
+
+        self.echo("[database] proceed {} continues samples".format(len(self)))
+
+    def get_indexs(self):
+        return list(self.index_features)
+
+    def get_feature(self, index):
+        pass
 
 
-def captcha_recongnise(file_raw):
-    global CAPTCHA_CNN, LABEL_TO_WORD
-    res = CAPTCHA_CNN.predict(read_preprocess_image_from_raw(file_raw))
-    word = LABEL_TO_WORD[str(tf.argmax(res[0]).numpy())]
-    #print("CNN captcha result: {}".format(word))
-    return word
+def rnn_init():
+    global ETH_RNN
 
-
-def cnn_init():
-    global CAPTCHA_CNN, LABEL_TO_WORD
-
-    paths = [MODEL_FILE, DICT_FILE]
+    paths = [MODEL_FILE]
     for i in paths:
         path_fixer(i)
 
     print("initializing...")
-
-    try:
-        LABEL_TO_WORD = json.load(open(DICT_FILE, "r"))
-    except Exception:
-        print("warning: label to word diction not ready")
 
     if __name__ != "__main__":
         CAPTCHA_CNN = customNN(NAME)
@@ -453,7 +516,6 @@ def cnn_init():
 
 
 def main():
-    data_root = pathlib.Path(DATASET_ROOT)
 
     img_paths = [str(ele) for ele in data_root.glob("*.jpg")]
 
@@ -586,7 +648,8 @@ def main():
 
 
 if __name__ == "__main__":
-    cnn_init()
+    rnn_init()
     main()
 else:
-    cnn_init()
+    #rnn_init()
+    pass
