@@ -15,7 +15,7 @@ from i2cylib.utils.path.path_fixer import *
 from i2cylib.utils.stdout.echo import *
 
 # 不使用GPU
-#os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 # *屏蔽tensorflow警告信息输出
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -25,14 +25,14 @@ import tensorflow as tf
 if len(tf.config.list_physical_devices('GPU')) > 0:
     tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
 
-DATASET_INDEX = "database/index.json"                       # 数据集预处理索引ID
+DATASET_INDEX = "database/index.json"  # 数据集预处理索引ID
 
-TEST_RATE = 0.05                                            # 测试集比例
-BATCH_SIZE = 10                                             # 批处理大小
-EPOCHES = 10                                                # 训练代数
-BUFF_RATE = 0.1                                             # 缓冲区大小指数
-LEARNING_RATE = 0.0001                                      # 学习率
-MODEL_FILE = "models/eth_market_model.h5"                   # 在此处修改神经网络模型文件
+TEST_RATE = 0.05  # 测试集比例
+BATCH_SIZE = 10  # 批处理大小
+EPOCHES = 10  # 训练代数
+BUFF_RATE = 0.1  # 缓冲区大小指数
+LEARNING_RATE = 0.0001  # 学习率
+MODEL_FILE = "models/eth_market_model.h5"  # 在此处修改神经网络模型文件
 NAME = "CryptoCoinPrediction"
 
 ETH_RNN = None
@@ -62,24 +62,21 @@ class customNN:
 
         self.call_times = 0
 
-
     def _get_freeRAM(self):
         free_ram = psutil.virtual_memory().free
         return free_ram
 
-
     def _init_tensorboard(self):
         log_dir = os.path.join(self.log_root,
-                               time.strftime("%Y%m%d-%H%M%S_")+
+                               time.strftime("%Y%m%d-%H%M%S_") +
                                self.name
                                )
         tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir,
                                                               histogram_freq=1)
         self.callbacks.append(tensorboard_callback)
         self.callback_file_writer = tf.summary.create_file_writer(os.path.join(
-                                                                  log_dir, "train"))
+            log_dir, "train"))
         self.callback_file_writer.set_as_default()
-
 
     def load_dataset(self, trainset, testset=None,
                      mapFunc=None, testRate=0.15, batchSize=8,
@@ -184,12 +181,12 @@ class customNN:
         for size in self.data_shape:
             datasize *= size
         freeRAM = int(self._get_freeRAM() * shufflePercentage)
-        print("free RAM size: {} MB".format(str(freeRAM//1048576)))
+        print("free RAM size: {} MB".format(str(freeRAM // 1048576)))
 
-        shuffle_MaxbuffSize = int((freeRAM * 0.8)//datasize)
-        prefetch_buffSize = int((freeRAM * 0.2)//(datasize * self.batch_size))
+        shuffle_MaxbuffSize = int((freeRAM * 0.8) // datasize)
+        prefetch_buffSize = int((freeRAM * 0.2) // (datasize * self.batch_size))
 
-        print("automatically allocated data buffer size: {} MB".format(str(shuffle_MaxbuffSize*datasize//1048576)))
+        print("automatically allocated data buffer size: {} MB".format(str(shuffle_MaxbuffSize * datasize // 1048576)))
 
         shuffle_buffSize = shuffle_MaxbuffSize
         if shuffle_MaxbuffSize > self.train_size:
@@ -203,15 +200,12 @@ class customNN:
         self.train_db = train_db
         self.test_db = test_db
 
-
     def set_model_file(self, path):
         self.model_file = path
-
 
     def enable_tensorboard(self, log_dir_root="./tensorflow_log"):
         self.log_root = log_dir_root
         self.tensorboard_enable = True
-
 
     def enable_checkpointAutosave(self, path=None):
         if path != None:
@@ -220,16 +214,14 @@ class customNN:
         self.add_callback(checkpoint)
         self.autosave = True
 
-
     def add_callback(self, callback_func):  # all callbacks added will be reset after training
         self.callbacks.append(callback_func)
-
 
     def init_model(self):  # 神经网络模型
 
         self.base_model = tf.keras.applications.Xception(input_shape=self.data_shape,
-                                                            include_top=False,
-                                                            weights="imagenet")
+                                                         include_top=False,
+                                                         weights="imagenet")
         self.base_model.trainable = False
 
         model = tf.keras.Sequential([
@@ -242,9 +234,6 @@ class customNN:
         self.model = model
 
         self.compile_model()
-
-
-
 
     def postProc_model(self, finetune_level=None):  # 模型后期处理（微调）
         if finetune_level is None:
@@ -262,7 +251,6 @@ class customNN:
         else:
             fine_tine_at = -47
 
-
         model.layers[0].trainable = True
 
         for layer in model.layers[0].layers[:fine_tune_at]:
@@ -276,27 +264,22 @@ class customNN:
         self.model = model
         print(model.summary())
 
-
     def compile_model(self):
         self.model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
                            loss="sparse_categorical_crossentropy",  # 多分类问题
                            metrics=["acc"]
                            )
 
-
     def save_model(self, path=None):
         if path != None:
             self.model_file = path
         self.model.save(self.model_file)
-
 
     def load_model(self, path=None):
         if path != None:
             self.model_file = path
         self.model = tf.keras.models.load_model(self.model_file, compile=True)
         self.compile_model()
-
-
 
     def train(self, epochs=100):
         if self.tensorboard_enable and self.epoch == 0:
@@ -305,9 +288,9 @@ class customNN:
             self.train_history = self.model.fit(self.train_db,
                                                 epochs=epochs,
                                                 initial_epoch=self.epoch,
-                                                steps_per_epoch=self.train_size//self.batch_size,
+                                                steps_per_epoch=self.train_size // self.batch_size,
                                                 validation_data=self.test_db,
-                                                validation_steps=self.test_size//self.batch_size,
+                                                validation_steps=self.test_size // self.batch_size,
                                                 callbacks=self.callbacks
                                                 )
             self.epoch += epochs
@@ -315,7 +298,6 @@ class customNN:
             print("\ntraining process stopped manually")
             if self.autosave:
                 self.load_model(self.model_file)
-
 
     def show_history_curves(self):
         plt.plot(self.train_history.epoch, self.train_history.history["loss"], label="Loss_Train")
@@ -328,31 +310,26 @@ class customNN:
         plt.legend()
         plt.show()
 
-
     def _generate_bar(self, percent):
-        res = " {}%\t[".format(str(round(percent*100, 1)))
+        res = " {}%\t[".format(str(round(percent * 100, 1)))
         if percent == 1:
-            res += "="*30
+            res += "=" * 30
         else:
-            done = int(30*percent)
-            res += done*"="
+            done = int(30 * percent)
+            res += done * "="
             res += ">"
-            res += (29 - done)*" "
+            res += (29 - done) * " "
 
         res += "]"
         return res
-
 
     def evaluate(self):
         print("evaluating model with test datasets...")
 
         acc = self.model.evaluate(self.test_db, return_dict=True,
-                                  steps=self.test_size//self.batch_size)
+                                  steps=self.test_size // self.batch_size)
 
         return acc
-
-
-
 
     def predict(self, data):
         try:
@@ -391,21 +368,17 @@ class predictor:
         self.labels_converter = []
         self.pre_process_func = self._default_preprocess
 
-
     def _default_preprocess(self, data):
         return data
-
 
     def load_labels(self, label_names):  # label_names 必须为列表 [[标签列表1], [标签列表2]]
         for label in label_names:
             converter = dict((index, name)
-                              for index, name in enumerate(label))
+                             for index, name in enumerate(label))
             self.labels_converter.append(converter)
-
 
     def set_preprocess_func(self, func):
         self.pre_process_func = func
-
 
     def predict(self, data):
         res_raw = self.dnn.predict(
@@ -419,7 +392,7 @@ class predictor:
 
 class DatasetBase:
 
-    def __init__(self, market_db_api, sample_time_ms=3000, set_size=20*15,
+    def __init__(self, market_db_api, sample_time_ms=3000, set_size=20 * 15,
                  echo=None, index_json=DATASET_INDEX, use_index_json=True):
         if not isinstance(market_db_api, MarketDB):
             raise TypeError("market database API must be a MarketDB object")
@@ -470,7 +443,7 @@ class DatasetBase:
         if self.indexed:
             return
         start_ts = 0
-        end_ts = time.time()*1000
+        end_ts = time.time() * 1000
         for dbn in self.db_api.all_tables.keys():
             db = self.db_api.all_tables[dbn]
             sts = db[0][1]
@@ -486,6 +459,7 @@ class DatasetBase:
         offset = start_ts
         last_ids = {}
         lengths = {}
+        data = {}
         for ele in self.db_api.monitoring:
             last_ids.update({ele: 1})
             lengths.update({ele: len(self.db_api.all_tables[ele])})
@@ -493,7 +467,7 @@ class DatasetBase:
         tick = 0
         while offset <= end_ts:
             try:
-                if tick%5 == 0:
+                if tick % 100 == 0:
                     self.echo.buttom_print("[dataset] processing data at {}".format(time.strftime(
                         "%y-%m-%d %H:%M:%S", time.localtime(offset / 1000))))
                 tick += 1
@@ -505,7 +479,7 @@ class DatasetBase:
                             break
                         ts_raw = self.db_api.all_tables[ele].get(last_ids[ele], column_name="TIMESTAMP")
                         if ts_raw[0][0] < (offset + self.sample_time):
-                            #print((offset + self.sample_time), ts_raw[0][0])
+                            # print((offset + self.sample_time), ts_raw[0][0])
                             data[ele].append(last_ids[ele])
                         else:
                             break
@@ -514,10 +488,10 @@ class DatasetBase:
                         data = None
                         break
             except KeyboardInterrupt:
-                self.echo("[dataset] process interrupted by keyboard")
-            #print("time cost {}s, offset now: {}".format(time.time()-t, time.strftime("%y-%m-%d %H:%M:%S", time.localtime(offset / 1000))))
+                self.echo.print("[dataset] process interrupted by keyboard")
+            # print("time cost {}s, offset now: {}".format(time.time()-t, time.strftime("%y-%m-%d %H:%M:%S", time.localtime(offset / 1000))))
             if data is None:
-                #print(data)
+                # print(data)
                 offset += self.sample_time
                 continue
             else:
@@ -526,30 +500,39 @@ class DatasetBase:
             offset += self.sample_time
 
         self.echo.print("[dataset] \n{}".format(self.index_batches.head(5)))
+        self.echo.buttom_print("")
 
         self.echo.print("[dataset] proceed {} samples".format(len(self.index_batches)))
 
         for index, ele in enumerate(self.index_batches.iloc):
-            if index+2*self.set_size >= len(self.index_batches):
-                break
-            sample = self.index_batches.iloc[index: index+2*self.set_size]
-            valid = True
-            length = len(sample)
-            for i, e in enumerate(sample.iloc):
-                if i + 1 >= length:
+            try:
+                if index + 2 * self.set_size >= len(self.index_batches):
                     break
-                if e["TS"] + self.sample_time != sample.iloc[i+1]["TS"]:
-                    valid = False
-                    break
-            if not valid:
-                continue
-            feature_set = self.index_batches.iloc[index: index+self.set_size]
-            label_set = self.index_batches.iloc[index+self.set_size: index+2*self.set_size]
-            self.index_features = self.index_features.append(feature_set, ignore_index=True)
-            self.index_labels = self.index_labels.append(label_set, ignore_index=True)
+                sample = self.index_batches.iloc[index: index + 2 * self.set_size]
+                valid = True
+                length = len(sample)
+                if index % 100 == 0:
+                    self.echo.buttom_print("[dataset] generating index data at {}".format(time.strftime(
+                        "%y-%m-%d %H:%M:%S", time.localtime(sample.iloc[0]["TS"] / 1000))))
+                for i, e in enumerate(sample.iloc):
+                    if i + 1 >= length:
+                        break
+                    if e["TS"] + self.sample_time != sample.iloc[i + 1]["TS"]:
+                        valid = False
+                        break
+                if not valid:
+                    continue
+                feature_set = self.index_batches.iloc[index: index + self.set_size]
+                label_set = self.index_batches.iloc[index + self.set_size: index + 2 * self.set_size]
+                self.index_features = self.index_features.append(feature_set, ignore_index=True)
+                self.index_labels = self.index_labels.append(label_set, ignore_index=True)
+            except KeyboardInterrupt:
+                self.echo.print("[dataset] process interrupted by keyboard")
 
         self.echo.print("[dataset] generated {} continues samples".format(len(self)))
-        self.echo.buttom_print("")
+
+        if self.index_file is not None:
+            self.dump_index()
 
     def dump_index(self, filename=None):
         if filename is None:
@@ -591,7 +574,6 @@ def rnn_init():
 
 
 def main():
-
     img_paths = [str(ele) for ele in data_root.glob("*.jpg")]
 
     labels = []
@@ -600,11 +582,11 @@ def main():
         i = i.split('/')[-1]
         name = i.split("_")
         id = int(name[1])
-        label_to_word.update({id:name[0]})
+        label_to_word.update({id: name[0]})
         labels.append(id)
 
     print("dumping label_to_word...")
-    json.dump(label_to_word, open(DICT_FILE,'w'), indent=2)
+    json.dump(label_to_word, open(DICT_FILE, 'w'), indent=2)
 
     img_counts = len(img_paths)
     print("loaded", img_counts, "image paths")
@@ -620,7 +602,6 @@ def main():
             break
         print(" " + str(labels[i]) + "\t\t" + str(img_paths[i]))
     print("============================================" * 3)
-
 
     # 初始化神经网络
     cnn = customNN(NAME)
@@ -642,7 +623,6 @@ def main():
 
     cnn.set_model_file(MODEL_FILE)
 
-
     print("testing model speed...")
 
     val_root = pathlib.Path("../validations")
@@ -657,8 +637,9 @@ def main():
             res = cnn.predict(ele)
         t2 = time.time()
         print("  testing {} files, time spent {}ms, {}ms per pred".format(len(test_data),
-                                                  round((t2-t1)*1000, 2),
-                                                  round(((t2-t1)/len(test_data))*1000, 2)))
+                                                                          round((t2 - t1) * 1000, 2),
+                                                                          round(((t2 - t1) / len(test_data)) * 1000,
+                                                                                2)))
 
     print("outputs: {}".format(res))
 
@@ -669,17 +650,17 @@ def main():
         t1 = time.time()
         res = cnn.predict(data.take(1))
         t2 = time.time()
-        print("  testing {} files, time spent {}ms, {}ms per data,\n  batching spent {}ms, total {}ms".format(len(test_data),
-                                                                                              round((t2-t1)*1000, 2),
-                                                                                              round((t2-t1)*125, 2),
-                                                                                              round((t4-t3)*1000, 2),
-                                                                                                  round((t2-t3)*1000, 2)))
+        print("  testing {} files, time spent {}ms, {}ms per data,\n  batching spent {}ms, total {}ms".format(
+            len(test_data),
+            round((t2 - t1) * 1000, 2),
+            round((t2 - t1) * 125, 2),
+            round((t4 - t3) * 1000, 2),
+            round((t2 - t3) * 1000, 2)))
 
     print("outputs: {}".format(res))
 
-
     cnn.enable_tensorboard()
-    #cnn.enable_checkpointAutosave(MODEL_FILE)
+    # cnn.enable_checkpointAutosave(MODEL_FILE)
 
     # 检查数据集匹配是否有错
     print("datasets:\n{}".format(str(cnn.train_db)))
@@ -688,11 +669,10 @@ def main():
         plt.imshow(img)
         plt.show()
 
-
     # 微调模型
     if True:
         choice = input("should we fine tune now? level(1,2/n): ".format(str(EPOCHES)))
-        if EPOCHES > 0 and choice in ("1","2"):
+        if EPOCHES > 0 and choice in ("1", "2"):
             cnn.postProc_model(int(choice))
 
     # 初次训练网络
@@ -711,7 +691,6 @@ def main():
     print("evaluating trained model...")
     cnn.evaluate()
 
-
     # 预测
     while True:
         path = input("test file path: ")
@@ -726,5 +705,5 @@ if __name__ == "__main__":
     rnn_init()
     main()
 else:
-    #rnn_init()
+    # rnn_init()
     pass
