@@ -25,13 +25,14 @@ import tensorflow as tf
 if len(tf.config.list_physical_devices('GPU')) > 0:
     tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
 
+DATASET_INDEX = "database/index.json"                       # 数据集预处理索引ID
 
 TEST_RATE = 0.05                                            # 测试集比例
 BATCH_SIZE = 10                                             # 批处理大小
 EPOCHES = 10                                                # 训练代数
 BUFF_RATE = 0.1                                             # 缓冲区大小指数
 LEARNING_RATE = 0.0001                                      # 学习率
-MODEL_FILE = "models/eth_market_model.h5"               # 在此处修改神经网络模型文件
+MODEL_FILE = "models/eth_market_model.h5"                   # 在此处修改神经网络模型文件
 NAME = "CryptoCoinPrediction"
 
 ETH_RNN = None
@@ -418,11 +419,16 @@ class predictor:
 
 class DatasetBase:
 
-    def __init__(self, market_db_api, sample_time_ms=3000, set_size=20*15, echo=None):
+    def __init__(self, market_db_api, sample_time_ms=3000, set_size=20*15,
+                 echo=None, index_json=DATASET_INDEX, use_index_json=True):
         if not isinstance(market_db_api, MarketDB):
             raise TypeError("market database API must be a MarketDB object")
-        if echo is None:
+        if not isinstance(echo, Echo):
             echo = self.__internal_echo__
+        self.indexed = use_index_json
+        if not os.path.exists(index_json):
+            self.indexed = False
+        self.index_file = index_json
         self.echo = echo
         self.db_api = market_db_api
         self.sample_time = sample_time_ms
@@ -430,9 +436,19 @@ class DatasetBase:
         self.index_batches = pd.DataFrame(None, columns=["TS"] + self.db_api.monitoring)
         self.index_features = pd.DataFrame(None, columns=["TS"] + self.db_api.monitoring)
         self.index_labels = pd.DataFrame(None, columns=["TS"] + self.db_api.monitoring)
+        if self.indexed:
+            self.read_index()
 
-    def __internal_echo__(self, msg):
-        pass
+    class __internal_echo__:
+
+        def __init__(self):
+            pass
+
+        def print(self, msg):
+            pass
+
+        def buttom_print(self, msg):
+            pass
 
     def __len__(self):
         return len(self.index_features)
@@ -451,6 +467,8 @@ class DatasetBase:
         return ret
 
     def init_dataset(self):
+        if self.indexed:
+            return
         start_ts = 0
         end_ts = time.time()*1000
         for dbn in self.db_api.all_tables.keys():
@@ -461,26 +479,65 @@ class DatasetBase:
                 start_ts = sts
             if end_ts > ets:
                 end_ts = ets
-        self.echo("[database] fetching data between {} to {}".format(
+        self.echo.print("[dataset] fetching data between {} to {}".format(
             time.strftime("%y-%m-%d %H:%M:%S", time.localtime(start_ts / 1000)),
             time.strftime("%y-%m-%d %H:%M:%S", time.localtime(end_ts / 1000))
         ))
         offset = start_ts
+        last_ids = {}
+        lengths = {}
+        for ele in self.db_api.monitoring:
+            last_ids.update({ele: 1})
+            lengths.update({ele: len(self.db_api.all_tables[ele])})
+            self.echo.print("[dataset] [{}] length: {}".format(ele, lengths[ele]))
+        tick = 0
         while offset <= end_ts:
-            data = self.__fetch__(offset)
+            try:
+                if tick%5 == 0:
+                    self.echo.buttom_print("[dataset] processing data at {}".format(time.strftime(
+                        "%y-%m-%d %H:%M:%S", time.localtime(offset / 1000))))
+                tick += 1
+                data = {}
+                for ele in self.db_api.monitoring:
+                    data.update({ele: []})
+                    while True:
+                        if last_ids[ele] > lengths[ele]:
+                            break
+                        ts_raw = self.db_api.all_tables[ele].get(last_ids[ele], column_name="TIMESTAMP")
+                        if ts_raw[0][0] < (offset + self.sample_time):
+                            #print((offset + self.sample_time), ts_raw[0][0])
+                            data[ele].append(last_ids[ele])
+                        else:
+                            break
+                        last_ids[ele] += 1
+                    if not data[ele]:
+                        data = None
+                        break
+            except KeyboardInterrupt:
+                self.echo("[dataset] process interrupted by keyboard")
+            #print("time cost {}s, offset now: {}".format(time.time()-t, time.strftime("%y-%m-%d %H:%M:%S", time.localtime(offset / 1000))))
             if data is None:
+                #print(data)
+                offset += self.sample_time
                 continue
             else:
                 data.update({"TS": offset})
-                self.index_batches.append(data, ignore_index=True)
+                self.index_batches = self.index_batches.append(data, ignore_index=True)
             offset += self.sample_time
 
-        self.echo("[database] proceed {} samples".format(len(self.index_batches)))
+        self.echo.print("[dataset] \n{}".format(self.index_batches.head(5)))
 
-        for index, ele in enumerate(self.index_batches.iloc[:-(2*self.set_size)]):
+        self.echo.print("[dataset] proceed {} samples".format(len(self.index_batches)))
+
+        for index, ele in enumerate(self.index_batches.iloc):
+            if index+2*self.set_size >= len(self.index_batches):
+                break
             sample = self.index_batches.iloc[index: index+2*self.set_size]
             valid = True
-            for i, e in enumerate(sample.iloc[:-1]):
+            length = len(sample)
+            for i, e in enumerate(sample.iloc):
+                if i + 1 >= length:
+                    break
                 if e["TS"] + self.sample_time != sample.iloc[i+1]["TS"]:
                     valid = False
                     break
@@ -488,10 +545,28 @@ class DatasetBase:
                 continue
             feature_set = self.index_batches.iloc[index: index+self.set_size]
             label_set = self.index_batches.iloc[index+self.set_size: index+2*self.set_size]
-            self.index_features.append(feature_set, ignore_index=True)
-            self.index_labels.append(label_set, ignore_index=True)
+            self.index_features = self.index_features.append(feature_set, ignore_index=True)
+            self.index_labels = self.index_labels.append(label_set, ignore_index=True)
 
-        self.echo("[database] proceed {} continues samples".format(len(self)))
+        self.echo.print("[dataset] generated {} continues samples".format(len(self)))
+        self.echo.buttom_print("")
+
+    def dump_index(self, filename=None):
+        if filename is None:
+            filename = self.index_file
+        raw = {"features": self.index_features.to_dict(),
+               "labels": self.index_labels.to_dict()}
+        with open(filename, "w") as f:
+            json.dump(raw, f)
+
+    def read_index(self, filename=None):
+        if filename is None:
+            filename = self.index_file
+        with open(filename, "r") as f:
+            raw = json.load(f)
+        self.index_features = pd.DataFrame(raw["features"])
+        self.index_labels = pd.DataFrame(raw["labels"])
+        self.indexed = True
 
     def get_indexs(self):
         return list(self.index_features)
