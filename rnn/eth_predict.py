@@ -38,6 +38,56 @@ NAME = "CryptoCoinPrediction"
 ETH_RNN = None
 
 
+class LSTMLayer4(tf.keras.layers.Layer):
+
+    def __init__(self, units):
+        super(LSTMLayer4, self).__init__()
+        #self.bn_1 = tf.keras.layers.BatchNormalization()
+        self.units = units
+        self.lstm_1 = None
+        self.lstm_2 = None
+        self.lstm_3 = None
+        self.lstm_4 = None
+
+    def call(self, inputs):
+        x = self.lstm_1(inputs)
+        x = self.lstm_2(x)
+        x = self.lstm_3(x)
+        x = self.lstm_4(x)
+        return x
+
+    def build(self, input_shape):
+        self.lstm_1 = tf.keras.layers.LSTM(self.units, input_shape=input_shape, return_sequences=True)
+        self.lstm_2 = tf.keras.layers.LSTM(self.units * 2, return_sequences=True, dropout=0.05)
+        self.lstm_3 = tf.keras.layers.LSTM(self.units * 2, return_sequences=True, dropout=0.1)
+        self.lstm_4 = tf.keras.layers.LSTM(self.units * 4, dropout=0.1)
+
+
+class Conv1DLSTM4(tf.keras.layers.Layer):
+
+    def __init__(self, units, core):
+        super(Conv1DLSTM4, self).__init__()
+        self.conv1d_1 = tf.keras.layers.Conv1D(units, core, padding="same")
+        self.bn_1 = tf.keras.layers.BatchNormalization()
+        self.conv1d_2 = tf.keras.layers.Conv1D(units // 2, core, padding="same")
+        self.bn_2 = tf.keras.layers.BatchNormalization()
+        self.lstm_1 = tf.keras.layers.LSTM(units // 2, return_sequences=True)
+        self.lstm_2 = tf.keras.layers.LSTM(units // 2, return_sequences=True, dropout=0.05)
+        self.lstm_3 = tf.keras.layers.LSTM(units // 2, dropout=0.1)
+
+    def call(self, inputs):
+        x = self.conv1d_1(inputs)
+        x = self.bn_1(x)
+        x = tf.nn.relu(x)
+        x = self.conv1d_2(inputs)
+        x = self.bn_2(x)
+        x = tf.nn.relu(x)
+        x = self.lstm_1(x)
+        x = self.lstm_2(x)
+        x = self.lstm_3(x)
+        return x
+
+
 class customNN:
     def __init__(self, model_name="MLP"):
         self.name = model_name
@@ -219,55 +269,39 @@ class customNN:
 
     def init_model(self):  # 神经网络模型
 
-        self.base_model = tf.keras.applications.Xception(input_shape=self.data_shape,
-                                                         include_top=False,
-                                                         weights="imagenet")
-        self.base_model.trainable = False
+        input_1 = tf.keras.Input(shape=(600, 13), name="input_1")
+        input_A = tf.keras.Input(shape=(600, 300), name="input_A")
+        input_B = tf.keras.Input(shape=(600, 40), name="input_B")
 
-        model = tf.keras.Sequential([
-            self.base_model,
-            tf.keras.layers.GlobalAveragePooling2D(),
-            tf.keras.layers.Dense(4096, activation="relu"),
-            tf.keras.layers.Dense(3500, activation="softmax")
-        ])
+        X1 = LSTMLayer4(64)(input_1)
+        XA = Conv1DLSTM4(128, 7)(input_A)
+        XB = Conv1DLSTM4(32, 3)(input_B)
 
-        self.model = model
+        X1 = tf.keras.layers.BatchNormalization()(X1)
+        XA = tf.keras.layers.BatchNormalization()(XA)
+        XB = tf.keras.layers.BatchNormalization()(XB)
+
+        XD = tf.keras.layers.concatenate([X1, XA, XB])
+        XD = tf.keras.layers.Dense(1024, activation="relu")(XD)
+        XD = tf.keras.layers.Dense(1024, activation="relu")(XD)
+        XD = tf.keras.layers.Dense(512, activation="relu")(XD)
+        XD = tf.keras.layers.Dense(300, activation="relu")(XD)
+
+        self.model = tf.keras.Model(inputs=[input_1, input_A, input_B],
+                                    outputs=XD)
 
         self.compile_model()
+        print(self.model.summary())
 
     def postProc_model(self, finetune_level=None):  # 模型后期处理（微调）
-        if finetune_level is None:
-            finetune_level = self.finetune_level
-        model = self.model
-        learning_rate = LEARNING_RATE
-        if finetune_level == 1:
-            fine_tune_at = -27
-            learning_rate /= 2
-            self.finetune_level = 1
-        elif finetune_level == 2:
-            learning_rate /= 4
-            fine_tune_at = -47
-            self.finetune_level = 2
-        else:
-            fine_tine_at = -47
-
-        model.layers[0].trainable = True
-
-        for layer in model.layers[0].layers[:fine_tune_at]:
-            layer.trainable = False
-
-        model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-                      loss="sparse_categorical_crossentropy",  # 多分类问题
-                      metrics=["acc"]
-                      )
-
-        self.model = model
-        print(model.summary())
+        pass
 
     def compile_model(self):
+        lr_reduce = tf.keras.callbacks.ReduceLROnPlateau('loss', patience=3, factor=0.5, min_lr=0.000001)
+        self.callbacks.append(lr_reduce)
         self.model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
-                           loss="sparse_categorical_crossentropy",  # 多分类问题
-                           metrics=["acc"]
+                           loss="mse",  # 均方差预测问题
+                           metrics=["mae"]
                            )
 
     def save_model(self, path=None):
@@ -552,9 +586,12 @@ class DatasetBase:
         self.indexed = True
 
     def get_indexs(self):
-        return list(self.index_features)
+        return list(self.index_features.index)
 
-    def get_feature(self, index):
+    def get_feature(self, index):  # data pre-processing function
+        pass
+
+    def get_label(self, index):  # data pre-processing function
         pass
 
 
