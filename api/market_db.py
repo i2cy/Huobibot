@@ -21,12 +21,15 @@ def db_echo(msg):
 
 class MarketDB:
 
-    def __init__(self, config=MARKET_CONFIG, echo=db_echo):
+    def __init__(self, config=MARKET_CONFIG, echo=db_echo, database=None):
         path_fixer(config)
         with open(config) as conf:
             config = json.load(conf)
         try:
-            self.db_file = config["database"]
+            if database is None:
+                self.db_file = config["database"]
+            else:
+                self.db_file = database
             path_fixer(self.db_file)
             self.monitoring = config["monitoring_markets"]
             for i in range(len(self.monitoring)):
