@@ -619,8 +619,8 @@ class DatasetBase:
         return list(self.index_features.index)
 
     def get_feature(self, index, tradename=None):  # data pre-processing function
+        ret = {}
         if tradename is None:
-            ret = {}
             for ele in self.db_api.monitoring:
                 data = {"input_1": [],
                         "input_A": [],
@@ -662,11 +662,138 @@ class DatasetBase:
                 data["input_A"] = b0[::-1] + s0
                 data["input_B"] = b5[::-1] + s5
                 ret.update({ele: data})
+        else:
+            data = {"input_1": [],
+                    "input_A": [],
+                    "input_B": []}
+            index_list = self.index_features.iloc[index][tradename]
+            raw = [list(self.db_api.all_tables[tradename].get(i)[0]) for i in index_list]
+            kopen = raw[0][4]
+            kclose = raw[-1][4]
+            kline = [e[4] for e in raw]
+            khigh = max(kline)
+            klow = min(kline)
+            buy_count = sum([e[9] for e in raw])
+            buy_amount = sum([e[10] for e in raw])
+            sell_count = sum([e[13] for e in raw])
+            sell_amount = sum([e[14] for e in raw])
+            buy_max = max([e[11] for e in raw])
+            buy_min = min([e[12] for e in raw])
+            sell_max = max([e[15] for e in raw])
+            sell_min = min([e[16] for e in raw])
+            amount = sum([e[9] + e[13] for e in raw])
+            depth_0_buy = json.loads(raw[-1][17])
+            depth_0_sell = json.loads(raw[-1][18])
+            depth_5_buy = json.loads(raw[-1][19])
+            depth_5_sell = json.loads(raw[-1][20])
+            b0 = [0.0 for e in range(150)]
+            b5 = [0.0 for e in range(150)]
+            s0 = [0.0 for e in range(150)]
+            s5 = [0.0 for e in range(150)]
+            for i, e in enumerate(depth_0_buy):
+                b0[i] = e[1]
+            for i, e in enumerate(depth_0_sell):
+                s0[i] = e[1]
+            for i, e in enumerate(depth_5_buy):
+                b5[i] = e[1]
+            for i, e in enumerate(depth_5_sell):
+                s5[i] = e[1]
+            data["input_1"] = [kopen, kclose, klow, khigh, buy_count, buy_amount, sell_count, sell_amount,
+                               buy_max, buy_min, sell_max, sell_min, amount]
+            data["input_A"] = b0[::-1] + s0
+            data["input_B"] = b5[::-1] + s5
+            ret = data
+
+        return ret
 
 
+    def get_label(self, index, tradename=None):  # data pre-processing function
+        ret = {}
+        if tradename is None:
+            for ele in self.db_api.monitoring:
+                data = {"input_1": [],
+                        "input_A": [],
+                        "input_B": []}
+                index_list = self.index_labels.iloc[index][ele]
+                raw = [list(self.db_api.all_tables[ele].get(i)[0]) for i in index_list]
+                kopen = raw[0][4]
+                kclose = raw[-1][4]
+                kline = [e[4] for e in raw]
+                khigh = max(kline)
+                klow = min(kline)
+                buy_count = sum([e[9] for e in raw])
+                buy_amount = sum([e[10] for e in raw])
+                sell_count = sum([e[13] for e in raw])
+                sell_amount = sum([e[14] for e in raw])
+                buy_max = max([e[11] for e in raw])
+                buy_min = min([e[12] for e in raw])
+                sell_max = max([e[15] for e in raw])
+                sell_min = min([e[16] for e in raw])
+                amount = sum([e[9] + e[13] for e in raw])
+                depth_0_buy = json.loads(raw[-1][17])
+                depth_0_sell = json.loads(raw[-1][18])
+                depth_5_buy = json.loads(raw[-1][19])
+                depth_5_sell = json.loads(raw[-1][20])
+                b0 = [0.0 for e in range(150)]
+                b5 = [0.0 for e in range(150)]
+                s0 = [0.0 for e in range(150)]
+                s5 = [0.0 for e in range(150)]
+                for i, e in enumerate(depth_0_buy):
+                    b0[i] = e[1]
+                for i, e in enumerate(depth_0_sell):
+                    s0[i] = e[1]
+                for i, e in enumerate(depth_5_buy):
+                    b5[i] = e[1]
+                for i, e in enumerate(depth_5_sell):
+                    s5[i] = e[1]
+                data["input_1"] = [kopen, kclose, klow, khigh, buy_count, buy_amount, sell_count, sell_amount,
+                                   buy_max, buy_min, sell_max, sell_min, amount]
+                data["input_A"] = b0[::-1] + s0
+                data["input_B"] = b5[::-1] + s5
+                ret.update({ele: data})
+        else:
+            data = {"input_1": [],
+                    "input_A": [],
+                    "input_B": []}
+            index_list = self.index_features.iloc[index][tradename]
+            raw = [list(self.db_api.all_tables[tradename].get(i)[0]) for i in index_list]
+            kopen = raw[0][4]
+            kclose = raw[-1][4]
+            kline = [e[4] for e in raw]
+            khigh = max(kline)
+            klow = min(kline)
+            buy_count = sum([e[9] for e in raw])
+            buy_amount = sum([e[10] for e in raw])
+            sell_count = sum([e[13] for e in raw])
+            sell_amount = sum([e[14] for e in raw])
+            buy_max = max([e[11] for e in raw])
+            buy_min = min([e[12] for e in raw])
+            sell_max = max([e[15] for e in raw])
+            sell_min = min([e[16] for e in raw])
+            amount = sum([e[9] + e[13] for e in raw])
+            depth_0_buy = json.loads(raw[-1][17])
+            depth_0_sell = json.loads(raw[-1][18])
+            depth_5_buy = json.loads(raw[-1][19])
+            depth_5_sell = json.loads(raw[-1][20])
+            b0 = [0.0 for e in range(150)]
+            b5 = [0.0 for e in range(150)]
+            s0 = [0.0 for e in range(150)]
+            s5 = [0.0 for e in range(150)]
+            for i, e in enumerate(depth_0_buy):
+                b0[i] = e[1]
+            for i, e in enumerate(depth_0_sell):
+                s0[i] = e[1]
+            for i, e in enumerate(depth_5_buy):
+                b5[i] = e[1]
+            for i, e in enumerate(depth_5_sell):
+                s5[i] = e[1]
+            data["input_1"] = [kopen, kclose, klow, khigh, buy_count, buy_amount, sell_count, sell_amount,
+                               buy_max, buy_min, sell_max, sell_min, amount]
+            data["input_A"] = b0[::-1] + s0
+            data["input_B"] = b5[::-1] + s5
+            ret = data
 
-    def get_label(self, index):  # data pre-processing function
-        pass
+        return ret
 
 
 def rnn_init():
