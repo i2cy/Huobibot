@@ -29,6 +29,9 @@ DATASET_INDEX = "database/index.json"  # 数据集预处理索引ID
 
 TEST_RATE = 0.05  # 测试集比例
 BATCH_SIZE = 10  # 批处理大小
+SAMPLE_SIZE = 1800  # 特征样本大小
+PREDICT_SIZE = 300  # 预测输出大小
+SAMPLE_TIME_MS = 3000  # 采样间隔时间（单位ms）
 EPOCHES = 10  # 训练代数
 BUFF_RATE = 0.1  # 缓冲区大小指数
 LEARNING_RATE = 0.0001  # 学习率
@@ -269,13 +272,38 @@ class customNN:
 
     def init_model(self):  # 神经网络模型
 
-        input_1 = tf.keras.Input(shape=(600, 13), name="input_1")
-        input_A = tf.keras.Input(shape=(600, 300), name="input_A")
-        input_B = tf.keras.Input(shape=(600, 40), name="input_B")
+        input_1 = tf.keras.Input(shape=(SAMPLE_SIZE, 13), name="input_1")
+        input_A = tf.keras.Input(shape=(SAMPLE_SIZE, 300), name="input_A")
+        input_B = tf.keras.Input(shape=(SAMPLE_SIZE, 40), name="input_B")
 
-        X1 = LSTMLayer4(64)(input_1)
-        XA = Conv1DLSTM4(128, 7)(input_A)
-        XB = Conv1DLSTM4(32, 3)(input_B)
+        X1 = input_1
+        XA = input_A
+        XB = input_B
+
+        X1 = tf.keras.layers.LSTM(64, return_sequences=True, dropout=0.05)(X1)
+        X1 = tf.keras.layers.LSTM(128, return_sequences=True, dropout=0.1)(X1)
+        X1 = tf.keras.layers.LSTM(128, return_sequences=True, dropout=0.1)(X1)
+        X1 = tf.keras.layers.LSTM(256, dropout=0.1)(X1)
+
+        XA = tf.keras.layers.Conv1D(128, 7, padding="same")(XA)
+        XA = tf.keras.layers.BatchNormalization()(XA)
+        XA = tf.nn.relu(XA)
+        XA = tf.keras.layers.Conv1D(64, 7, padding="same")(XA)
+        XA = tf.keras.layers.BatchNormalization()(XA)
+        XA = tf.nn.relu(XA)
+        XA = tf.keras.layers.LSTM(64, dropout=0.05, return_sequences=True)(XA)
+        XA = tf.keras.layers.LSTM(64, dropout=0.1, return_sequences=True)(XA)
+        XA = tf.keras.layers.LSTM(64, dropout=0.1)(XA)
+
+        XB = tf.keras.layers.Conv1D(32, 7, padding="same")(XB)
+        XB = tf.keras.layers.BatchNormalization()(XB)
+        XB = tf.nn.relu(XB)
+        XB = tf.keras.layers.Conv1D(16, 7, padding="same")(XB)
+        XB = tf.keras.layers.BatchNormalization()(XB)
+        XB = tf.nn.relu(XB)
+        XB = tf.keras.layers.LSTM(64, dropout=0.05, return_sequences=True)(XB)
+        XB = tf.keras.layers.LSTM(64, dropout=0.1, return_sequences=True)(XB)
+        XB = tf.keras.layers.LSTM(64, dropout=0.1)(XB)
 
         X1 = tf.keras.layers.BatchNormalization()(X1)
         XA = tf.keras.layers.BatchNormalization()(XA)
@@ -285,7 +313,7 @@ class customNN:
         XD = tf.keras.layers.Dense(1024, activation="relu")(XD)
         XD = tf.keras.layers.Dense(1024, activation="relu")(XD)
         XD = tf.keras.layers.Dense(512, activation="relu")(XD)
-        XD = tf.keras.layers.Dense(300, activation="relu")(XD)
+        XD = tf.keras.layers.Dense(PREDICT_SIZE, activation="relu")(XD)
 
         self.model = tf.keras.Model(inputs=[input_1, input_A, input_B],
                                     outputs=XD)
@@ -563,10 +591,12 @@ class DatasetBase:
             except KeyboardInterrupt:
                 self.echo.print("[dataset] process interrupted by keyboard")
 
+        del self.index_batches
+        self.index_batches = None
         self.echo.print("[dataset] generated {} continues samples".format(len(self)))
 
-        if self.index_file is not None:
-            self.dump_index()
+        #if self.index_file is not None:
+        #    self.dump_index()
 
     def dump_index(self, filename=None):
         if filename is None:
@@ -588,8 +618,52 @@ class DatasetBase:
     def get_indexs(self):
         return list(self.index_features.index)
 
-    def get_feature(self, index):  # data pre-processing function
-        pass
+    def get_feature(self, index, tradename=None):  # data pre-processing function
+        if tradename is None:
+            ret = {}
+            for ele in self.db_api.monitoring:
+                data = {"input_1": [],
+                        "input_A": [],
+                        "input_B": []}
+                index_list = self.index_features.iloc[index][ele]
+                raw = [list(self.db_api.all_tables[ele].get(i)[0]) for i in index_list]
+                kopen = raw[0][4]
+                kclose = raw[-1][4]
+                kline = [e[4] for e in raw]
+                khigh = max(kline)
+                klow = min(kline)
+                buy_count = sum([e[9] for e in raw])
+                buy_amount = sum([e[10] for e in raw])
+                sell_count = sum([e[13] for e in raw])
+                sell_amount = sum([e[14] for e in raw])
+                buy_max = max([e[11] for e in raw])
+                buy_min = min([e[12] for e in raw])
+                sell_max = max([e[15] for e in raw])
+                sell_min = min([e[16] for e in raw])
+                amount = sum([e[9]+e[13] for e in raw])
+                depth_0_buy = json.loads(raw[-1][17])
+                depth_0_sell = json.loads(raw[-1][18])
+                depth_5_buy = json.loads(raw[-1][19])
+                depth_5_sell = json.loads(raw[-1][20])
+                b0 = [0.0 for e in range(150)]
+                b5 = [0.0 for e in range(150)]
+                s0 = [0.0 for e in range(150)]
+                s5 = [0.0 for e in range(150)]
+                for i, e in enumerate(depth_0_buy):
+                    b0[i] = e[1]
+                for i, e in enumerate(depth_0_sell):
+                    s0[i] = e[1]
+                for i, e in enumerate(depth_5_buy):
+                    b5[i] = e[1]
+                for i, e in enumerate(depth_5_sell):
+                    s5[i] = e[1]
+                data["input_1"] = [kopen, kclose, klow, khigh, buy_count, buy_amount, sell_count, sell_amount,
+                                   buy_max, buy_min, sell_max, sell_min, amount]
+                data["input_A"] = b0[::-1] + s0
+                data["input_B"] = b5[::-1] + s5
+                ret.update({ele: data})
+
+
 
     def get_label(self, index):  # data pre-processing function
         pass
