@@ -9,7 +9,10 @@ import matplotlib.pyplot as plt
 import random
 import pathlib
 import json
+
+import numpy
 import pandas as pd
+import numpy as np
 from api.market_db import *
 from i2cylib.utils.path.path_fixer import *
 from i2cylib.utils.stdout.echo import *
@@ -25,7 +28,7 @@ import tensorflow as tf
 if len(tf.config.list_physical_devices('GPU')) > 0:
     tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
 
-DATASET_INDEX = "database/index.json"  # 数据集预处理索引ID
+DATASET_INDEX = "database/index.npz"  # 数据集预处理索引ID
 
 TEST_RATE = 0.05  # 测试集比例
 BATCH_SIZE = 10  # 批处理大小
@@ -272,7 +275,7 @@ class customNN:
 
     def init_model(self):  # 神经网络模型
 
-        input_1 = tf.keras.Input(shape=(SAMPLE_SIZE, 13), name="input_1")
+        input_1 = tf.keras.Input(shape=(SAMPLE_SIZE, 11*5), name="input_1")
         input_A = tf.keras.Input(shape=(SAMPLE_SIZE, 300), name="input_A")
         input_B = tf.keras.Input(shape=(SAMPLE_SIZE, 40), name="input_B")
 
@@ -452,14 +455,112 @@ class predictor:
         return res
 
 
+class Dataframe(object):
+
+    def __init__(self, data=None, header=None, dtype="int64", no_nan=True):
+        if not isinstance(header, list) and header is not None:
+            raise Exception("header must be list")
+        self.headers = header
+        if data is not None:
+            if isinstance(data, np.ndarray):
+                self.data = data
+            else:
+                self.data = np.array(data, dtype=dtype)
+            if self.headers is None or len(self.headers) < self.data.shape[1]:
+                self.headers = list(range(self.data.shape[1]))
+        else:
+            if self.headers is not None:
+                self.data = np.empty((0, len(header)), dtype=dtype)
+            else:
+                self.data = None
+        self.dtype = dtype
+        self.offset = 0
+        self.no_nan = no_nan
+
+    def __iter__(self):
+        self.offset = 0
+        return self.data
+
+    def __getitem__(self, item):
+        if isinstance(item, tuple):
+            index = item[0]
+            key = item[1]
+            ret = self.data[index]
+            if len(ret.shape) == 1:
+                ret = ret[self.headers.index(key)]
+            else:
+                ret = [ele[self.headers.index(key)] for ele in ret]
+        else:
+            index = item
+            ret = self.data[index].tolist()
+        return ret
+
+    def __len__(self):
+        return len(self.data)
+
+    def __str__(self):
+        return str(self.data.__array__())
+
+    def append(self, data):
+        if self.headers is None:
+            self.headers = list(range(len(data)))
+            self.data = np.empty((0, len(self.header)), dtype=self.dtype)
+        raw = [np.nan for ele in self.headers]
+        ele_count = 0
+        if isinstance(data, dict):
+            for ele in data.keys():
+                raw[self.headers.index(ele)] = data.get(ele)
+                ele_count += 1
+        else:
+            for i, ele in enumerate(data):
+                raw[i] = ele
+            ele_count = len(data)
+        if ele_count < len(self.headers) and self.no_nan:
+            raise KeyError("dataframe width is {}, but the input data has length {}".format(
+                len(self.headers),
+                len(data.keys())
+            ))
+        raw = np.array([raw], dtype=self.dtype)
+        self.data = np.append(self.data, raw, axis=0)
+
+    def delete(self, **kwargs):
+        self.data = np.delete(kwargs)
+
+    def dump(self, filename):
+        if len(filename) < 4 or filename[-4:] != ".npz":
+            filename += ".npz"
+        np.savez_compressed(filename, data=self.data, headers=np.array(self.headers))
+
+    def load(self, filename):
+        if len(filename) < 4 or filename[-4:] != ".npz":
+            filename += ".npz"
+        try:
+            raw = np.load(filename)
+            self.data = raw["data"]
+        except ValueError:
+            raw = np.load(filename, allow_pickle=True)
+            self.data = raw["data"]
+        self.headers = raw["headers"].tolist()
+
+    def head(self, index):
+        ret = ""
+        for ele in self.headers:
+            ret += "{}\t".format(ele)
+        ret += "\n"
+        for i in range(index):
+            ret += str(self.data[i]) + "\n"
+        return ret
+
+
 class DatasetBase:
 
-    def __init__(self, market_db_api, sample_time_ms=3000, set_size=20 * 15,
-                 echo=None, index_json=DATASET_INDEX, use_index_json=True):
+    def __init__(self, market_db_api, sample_time_ms=3000, set_size=SAMPLE_SIZE,
+                 echo=None, index_json=DATASET_INDEX, use_index_json=True,
+                 label_size=PREDICT_SIZE):
         if not isinstance(market_db_api, MarketDB):
             raise TypeError("market database API must be a MarketDB object")
         if not isinstance(echo, Echo):
-            echo = self.__internal_echo__
+            echo = self.__internal_echo__()
         self.indexed = use_index_json
         if not os.path.exists(index_json):
             self.indexed = False
@@ -468,9 +569,10 @@ class DatasetBase:
         self.db_api = market_db_api
         self.sample_time = sample_time_ms
         self.set_size = set_size
-        self.index_batches = pd.DataFrame(None, columns=["TS"] + self.db_api.monitoring)
-        self.index_features = pd.DataFrame(None, columns=["TS"] + self.db_api.monitoring)
-        self.index_labels = pd.DataFrame(None, columns=["TS"] + self.db_api.monitoring)
+        self.label_size = label_size
+        self.headers = ["TS"] + [ele for ele in self.db_api.monitoring]
+        self.index_batches = Dataframe(header=self.headers, dtype=object)
+        self.index_valids = Dataframe(header=["TS", "OFFSET"])
         if self.indexed:
             self.read_index()
 
@@ -486,7 +588,7 @@ class DatasetBase:
             pass
 
     def __len__(self):
-        return len(self.index_features)
+        return len(self.index_valids)
 
     def __fetch__(self, start_ts):
         ret = {}
@@ -558,7 +660,7 @@ class DatasetBase:
                 continue
             else:
                 data.update({"TS": offset})
-                self.index_batches = self.index_batches.append(data, ignore_index=True)
+                self.index_batches.append(data)
             offset += self.sample_time
 
         self.echo.print("[dataset] \n{}".format(self.index_batches.head(5)))
@@ -566,33 +668,41 @@ class DatasetBase:
 
         self.echo.print("[dataset] proceed {} samples".format(len(self.index_batches)))
 
-        for index, ele in enumerate(self.index_batches.iloc):
+        for index in range(len(self.index_batches)):
             try:
-                if index + 2 * self.set_size >= len(self.index_batches):
+                if index + self.set_size + self.label_size >= len(self.index_batches):
                     break
-                sample = self.index_batches.iloc[index: index + 2 * self.set_size]
+                sample = self.index_batches[index: index + self.set_size + self.label_size]
+                #print(sample)
                 valid = True
                 length = len(sample)
+                tsi = self.headers.index("TS")
                 if index % 100 == 0:
                     self.echo.buttom_print("[dataset] generating index data at {}".format(time.strftime(
-                        "%y-%m-%d %H:%M:%S", time.localtime(sample.iloc[0]["TS"] / 1000))))
-                for i, e in enumerate(sample.iloc):
+                        "%y-%m-%d %H:%M:%S", time.localtime(sample[0][self.headers.index("TS")] / 1000))))
+                for i, e in enumerate(sample):
                     if i + 1 >= length:
                         break
-                    if e["TS"] + self.sample_time != sample.iloc[i + 1]["TS"]:
+                    if e[tsi] + self.sample_time != sample[i + 1][tsi]:
+                        #print(e)
+                        #print(sample)
+                        #self.echo.print("[database] divided sample detected at {} and {} for {}ms".format(e[tsi],
+                        #                                                                   sample[i + 1][tsi],
+                        #                                                                sample[i + 1][tsi]-e[tsi]))
                         valid = False
                         break
                 if not valid:
                     continue
-                feature_set = self.index_batches.iloc[index: index + self.set_size]
-                label_set = self.index_batches.iloc[index + self.set_size: index + 2 * self.set_size]
-                self.index_features = self.index_features.append(feature_set, ignore_index=True)
-                self.index_labels = self.index_labels.append(label_set, ignore_index=True)
+                val = {"TS": sample[0][tsi], "OFFSET": index}
+                #print(val)
+                self.index_valids.append(val)
             except KeyboardInterrupt:
                 self.echo.print("[dataset] process interrupted by keyboard")
 
-        del self.index_batches
-        self.index_batches = None
+        #del self.index_batches
+        #self.index_batches = None
+        self.echo.print("[dataset] \n{}".format(self.index_valids.head(3)))
+        self.echo.buttom_print("")
         self.echo.print("[dataset] generated {} continues samples".format(len(self)))
 
         #if self.index_file is not None:
@@ -601,22 +711,20 @@ class DatasetBase:
     def dump_index(self, filename=None):
         if filename is None:
             filename = self.index_file
-        raw = {"features": self.index_features.to_dict(),
-               "labels": self.index_labels.to_dict()}
-        with open(filename, "w") as f:
-            json.dump(raw, f)
+        headers_index = np.array(self.headers)
+        np.savez_compressed(filename, headers_index=headers_index,
+                            batches=self.index_batches.data, valids=self.index_valids.data)
 
     def read_index(self, filename=None):
         if filename is None:
             filename = self.index_file
-        with open(filename, "r") as f:
-            raw = json.load(f)
-        self.index_features = pd.DataFrame(raw["features"])
-        self.index_labels = pd.DataFrame(raw["labels"])
+        raw = np.load(filename, allow_pickle=True)
+        self.index_batches = Dataframe(data=raw["batches"], header=raw["headers_index"].tolist())
+        self.index_valids = Dataframe(data=raw["valids"], header=["TS", "OFFSET"])
         self.indexed = True
 
     def get_indexs(self):
-        return list(self.index_features.index)
+        return list(range(len(self.index_valids)))
 
     def get_feature(self, index, tradename=None):  # data pre-processing function
         ret = {}
@@ -687,9 +795,9 @@ class DatasetBase:
             depth_5_buy = json.loads(raw[-1][19])
             depth_5_sell = json.loads(raw[-1][20])
             b0 = [0.0 for e in range(150)]
-            b5 = [0.0 for e in range(150)]
+            b5 = [0.0 for e in range(20)]
             s0 = [0.0 for e in range(150)]
-            s5 = [0.0 for e in range(150)]
+            s5 = [0.0 for e in range(20)]
             for i, e in enumerate(depth_0_buy):
                 b0[i] = e[1]
             for i, e in enumerate(depth_0_sell):
