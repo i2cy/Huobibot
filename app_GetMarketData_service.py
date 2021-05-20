@@ -299,14 +299,14 @@ class Updater:
                 buy_amount += ele.amount
                 if ele.amount > buy_max:
                     buy_max = ele.amount
-                if ele.amount < buy_min:
+                if ele.amount < buy_min or buy_min == -1:
                     buy_min = ele.amount
             else:
                 sell_count += 1
                 sell_amount += ele.amount
                 if ele.amount > sell_max:
                     sell_max = ele.amount
-                if ele.amount < sell_min:
+                if ele.amount < sell_min or sell_min == -1:
                     sell_min = ele.amount
         return [buy_count, buy_amount, buy_max, buy_min,
                 sell_count, sell_amount, sell_max, sell_min], trade_id
