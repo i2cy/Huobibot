@@ -16,7 +16,7 @@ def main():
     ECHO.print("[{}] [main] initializing database, it may takes a while...".format(
         time.strftime("%y-%m-%d %H:%M:%S")))
     db = MarketDB()
-    ECHO.print("[{}] [main] [database] initialized")
+    ECHO.print("[{}] [main] [database] initialized".format(time.strftime("%y-%m-%d %H:%M:%S")))
     ECHO.print("[{}] [main] sample_time = {} ms".format(time.strftime("%y-%m-%d %H:%M:%S"),
                                                         SAMPLE_TIME_MS))
     ECHO.print("[{}] [main] sample_size = {} samples".format(time.strftime("%y-%m-%d %H:%M:%S"),
