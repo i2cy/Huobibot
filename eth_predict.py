@@ -29,19 +29,21 @@ if len(tf.config.list_physical_devices('GPU')) > 0:
     tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
 
 DATASET_INDEX = "database/index.npz"  # 数据集预处理索引ID
+TARGETMARKET = "DOGEUSDT"
 
 TEST_RATE = 0.05  # 测试集比例
 BATCH_SIZE = 10  # 批处理大小
-SAMPLE_SIZE = 1800  # 特征样本大小
-PREDICT_SIZE = 300  # 预测输出大小
-SAMPLE_TIME_MS = 3000  # 采样间隔时间（单位ms）
+SAMPLE_SIZE = 720  # 特征样本大小
+PREDICT_SIZE = 80  # 预测输出大小
+SAMPLE_TIME_MS = 7500  # 采样间隔时间（单位ms）
 EPOCHES = 10  # 训练代数
 BUFF_RATE = 0.1  # 缓冲区大小指数
 LEARNING_RATE = 0.0001  # 学习率
-MODEL_FILE = "models/eth_market_model.h5"  # 在此处修改神经网络模型文件
+MODEL_FILE = "rnn/models/eth_market_model.h5"  # 在此处修改神经网络模型文件
 NAME = "CryptoCoinPrediction"
 
 ETH_RNN = None
+DATASET = None
 
 
 class LSTMLayer4(tf.keras.layers.Layer):
@@ -142,6 +144,7 @@ class customNN:
         if testset == None:
             # randomly split trainset and testset
             datasets = [ele for ele in trainset]
+            #print(datasets, trainset)
             train_size = len(datasets[0]) - int(len(datasets[0]) * testRate)
             all_indexs = list(range(len(datasets[0])))
             random.shuffle(all_indexs)
@@ -479,20 +482,42 @@ class Dataframe(object):
 
     def __iter__(self):
         self.offset = 0
-        return self.data
+        return self
+
+    def __next__(self):
+        if self.offset >= len(self):
+            raise StopIteration
+        ret = self.data[self.offset]
+        self.offset += 1
+        return ret
 
     def __getitem__(self, item):
-        if isinstance(item, tuple):
-            index = item[0]
-            key = item[1]
-            ret = self.data[index]
-            if len(ret.shape) == 1:
-                ret = ret[self.headers.index(key)]
+        try:
+            if isinstance(item, tuple):
+                index = item[0]
+                key = item[1]
+                if isinstance(index, dict):
+                    index = index[list(index.keys())[0]]
+                    if isinstance(index, int) or isinstance(index, slice):
+                        pass
+                    else:
+                        index = 0
+                    ret = self.data[int(index)]
+                else:
+                    if isinstance(index, int) or isinstance(index, slice):
+                        pass
+                    else:
+                        index = 0
+                    ret = self.data[index]
+                if len(ret.shape) == 1:
+                    ret = ret[self.headers.index(key)]
+                else:
+                    ret = [ele[self.headers.index(key)] for ele in ret]
             else:
-                ret = [ele[self.headers.index(key)] for ele in ret]
-        else:
-            index = item
-            ret = self.data[index].tolist()
+                ret = self.data[item]
+        except IndexError:
+            print("got index {}".format(item))
+            raise IndexError
         return ret
 
     def __len__(self):
@@ -504,7 +529,7 @@ class Dataframe(object):
     def append(self, data):
         if self.headers is None:
             self.headers = list(range(len(data)))
-            self.data = np.empty((0, len(self.header)), dtype=self.dtype)
+            self.data = np.empty((0, len(self.headers)), dtype=self.dtype)
         raw = [np.nan for ele in self.headers]
         ele_count = 0
         if isinstance(data, dict):
@@ -669,6 +694,8 @@ class DatasetBase:
         self.echo.print("[dataset] proceed {} samples".format(len(self.index_batches)))
 
         for index in range(len(self.index_batches)):
+            #print(self.index_batches, "AAAAAAAAAAA")
+            #print(len(self.index_batches))
             try:
                 if index + self.set_size + self.label_size >= len(self.index_batches):
                     break
@@ -678,8 +705,10 @@ class DatasetBase:
                 length = len(sample)
                 tsi = self.headers.index("TS")
                 if index % 100 == 0:
-                    self.echo.buttom_print("[dataset] generating index data at {}".format(time.strftime(
-                        "%y-%m-%d %H:%M:%S", time.localtime(sample[0][self.headers.index("TS")] / 1000))))
+                    self.echo.buttom_print("[dataset] generating index data at {}, {} sample generated".format(
+                        time.strftime(
+                        "%y-%m-%d %H:%M:%S", time.localtime(sample[0][self.headers.index("TS")] / 1000)),
+                        len(self.index_valids)))
                 for i, e in enumerate(sample):
                     if i + 1 >= length:
                         break
@@ -726,56 +755,15 @@ class DatasetBase:
     def get_indexs(self):
         return list(range(len(self.index_valids)))
 
-    def get_feature(self, index, tradename=None):  # data pre-processing function
+    def get_batch(self, index):
+        #print(index)
+        index = self.index_batches[index]
         ret = {}
-        if tradename is None:
-            for ele in self.db_api.monitoring:
-                data = {"input_1": [],
-                        "input_A": [],
-                        "input_B": []}
-                index_list = self.index_features.iloc[index][ele]
-                raw = [list(self.db_api.all_tables[ele].get(i)[0]) for i in index_list]
-                kopen = raw[0][4]
-                kclose = raw[-1][4]
-                kline = [e[4] for e in raw]
-                khigh = max(kline)
-                klow = min(kline)
-                buy_count = sum([e[9] for e in raw])
-                buy_amount = sum([e[10] for e in raw])
-                sell_count = sum([e[13] for e in raw])
-                sell_amount = sum([e[14] for e in raw])
-                buy_max = max([e[11] for e in raw])
-                buy_min = min([e[12] for e in raw])
-                sell_max = max([e[15] for e in raw])
-                sell_min = min([e[16] for e in raw])
-                amount = sum([e[9]+e[13] for e in raw])
-                depth_0_buy = json.loads(raw[-1][17])
-                depth_0_sell = json.loads(raw[-1][18])
-                depth_5_buy = json.loads(raw[-1][19])
-                depth_5_sell = json.loads(raw[-1][20])
-                b0 = [0.0 for e in range(150)]
-                b5 = [0.0 for e in range(150)]
-                s0 = [0.0 for e in range(150)]
-                s5 = [0.0 for e in range(150)]
-                for i, e in enumerate(depth_0_buy):
-                    b0[i] = e[1]
-                for i, e in enumerate(depth_0_sell):
-                    s0[i] = e[1]
-                for i, e in enumerate(depth_5_buy):
-                    b5[i] = e[1]
-                for i, e in enumerate(depth_5_sell):
-                    s5[i] = e[1]
-                data["input_1"] = [kopen, kclose, klow, khigh, buy_count, buy_amount, sell_count, sell_amount,
-                                   buy_max, buy_min, sell_max, sell_min, amount]
-                data["input_A"] = b0[::-1] + s0
-                data["input_B"] = b5[::-1] + s5
-                ret.update({ele: data})
-        else:
+        for ele in self.db_api.monitoring:
             data = {"input_1": [],
                     "input_A": [],
                     "input_B": []}
-            index_list = self.index_features.iloc[index][tradename]
-            raw = [list(self.db_api.all_tables[tradename].get(i)[0]) for i in index_list]
+            raw = [list(self.db_api.all_tables[ele].get(i)[0]) for i in index[self.headers.index(ele)]]
             kopen = raw[0][4]
             kclose = raw[-1][4]
             kline = [e[4] for e in raw]
@@ -786,10 +774,10 @@ class DatasetBase:
             sell_count = sum([e[13] for e in raw])
             sell_amount = sum([e[14] for e in raw])
             buy_max = max([e[11] for e in raw])
-            buy_min = min([e[12] for e in raw])
+            #buy_min = min([e[12] for e in raw])
             sell_max = max([e[15] for e in raw])
-            sell_min = min([e[16] for e in raw])
-            amount = sum([e[9] + e[13] for e in raw])
+            #sell_min = min([e[16] for e in raw])
+            amount = buy_amount + sell_amount
             depth_0_buy = json.loads(raw[-1][17])
             depth_0_sell = json.loads(raw[-1][18])
             depth_5_buy = json.loads(raw[-1][19])
@@ -807,249 +795,173 @@ class DatasetBase:
             for i, e in enumerate(depth_5_sell):
                 s5[i] = e[1]
             data["input_1"] = [kopen, kclose, klow, khigh, buy_count, buy_amount, sell_count, sell_amount,
-                               buy_max, buy_min, sell_max, sell_min, amount]
+                               buy_max, sell_max, amount]
             data["input_A"] = b0[::-1] + s0
             data["input_B"] = b5[::-1] + s5
-            ret = data
+            ret.update({ele: data})
 
         return ret
 
-
-    def get_label(self, index, tradename=None):  # data pre-processing function
-        ret = {}
-        if tradename is None:
+    def get_feature(self, index, key=None):  # data pre-processing function
+        tradename = TARGETMARKET
+        start_offset = self.index_valids[index, "OFFSET"]
+        input_1 = Dataframe(dtype="float32")
+        input_A = Dataframe(dtype="float32")
+        input_B = Dataframe(dtype="float32")
+        #print(start_offset)
+        for i in range(self.set_size):
+            raw = self.get_batch(start_offset + i)
+            in1 = []
             for ele in self.db_api.monitoring:
-                data = {"input_1": [],
-                        "input_A": [],
-                        "input_B": []}
-                index_list = self.index_labels.iloc[index][ele]
-                raw = [list(self.db_api.all_tables[ele].get(i)[0]) for i in index_list]
-                kopen = raw[0][4]
-                kclose = raw[-1][4]
-                kline = [e[4] for e in raw]
-                khigh = max(kline)
-                klow = min(kline)
-                buy_count = sum([e[9] for e in raw])
-                buy_amount = sum([e[10] for e in raw])
-                sell_count = sum([e[13] for e in raw])
-                sell_amount = sum([e[14] for e in raw])
-                buy_max = max([e[11] for e in raw])
-                buy_min = min([e[12] for e in raw])
-                sell_max = max([e[15] for e in raw])
-                sell_min = min([e[16] for e in raw])
-                amount = sum([e[9] + e[13] for e in raw])
-                depth_0_buy = json.loads(raw[-1][17])
-                depth_0_sell = json.loads(raw[-1][18])
-                depth_5_buy = json.loads(raw[-1][19])
-                depth_5_sell = json.loads(raw[-1][20])
-                b0 = [0.0 for e in range(150)]
-                b5 = [0.0 for e in range(150)]
-                s0 = [0.0 for e in range(150)]
-                s5 = [0.0 for e in range(150)]
-                for i, e in enumerate(depth_0_buy):
-                    b0[i] = e[1]
-                for i, e in enumerate(depth_0_sell):
-                    s0[i] = e[1]
-                for i, e in enumerate(depth_5_buy):
-                    b5[i] = e[1]
-                for i, e in enumerate(depth_5_sell):
-                    s5[i] = e[1]
-                data["input_1"] = [kopen, kclose, klow, khigh, buy_count, buy_amount, sell_count, sell_amount,
-                                   buy_max, buy_min, sell_max, sell_min, amount]
-                data["input_A"] = b0[::-1] + s0
-                data["input_B"] = b5[::-1] + s5
-                ret.update({ele: data})
-        else:
-            data = {"input_1": [],
-                    "input_A": [],
-                    "input_B": []}
-            index_list = self.index_features.iloc[index][tradename]
-            raw = [list(self.db_api.all_tables[tradename].get(i)[0]) for i in index_list]
-            kopen = raw[0][4]
-            kclose = raw[-1][4]
-            kline = [e[4] for e in raw]
-            khigh = max(kline)
-            klow = min(kline)
-            buy_count = sum([e[9] for e in raw])
-            buy_amount = sum([e[10] for e in raw])
-            sell_count = sum([e[13] for e in raw])
-            sell_amount = sum([e[14] for e in raw])
-            buy_max = max([e[11] for e in raw])
-            buy_min = min([e[12] for e in raw])
-            sell_max = max([e[15] for e in raw])
-            sell_min = min([e[16] for e in raw])
-            amount = sum([e[9] + e[13] for e in raw])
-            depth_0_buy = json.loads(raw[-1][17])
-            depth_0_sell = json.loads(raw[-1][18])
-            depth_5_buy = json.loads(raw[-1][19])
-            depth_5_sell = json.loads(raw[-1][20])
-            b0 = [0.0 for e in range(150)]
-            b5 = [0.0 for e in range(150)]
-            s0 = [0.0 for e in range(150)]
-            s5 = [0.0 for e in range(150)]
-            for i, e in enumerate(depth_0_buy):
-                b0[i] = e[1]
-            for i, e in enumerate(depth_0_sell):
-                s0[i] = e[1]
-            for i, e in enumerate(depth_5_buy):
-                b5[i] = e[1]
-            for i, e in enumerate(depth_5_sell):
-                s5[i] = e[1]
-            data["input_1"] = [kopen, kclose, klow, khigh, buy_count, buy_amount, sell_count, sell_amount,
-                               buy_max, buy_min, sell_max, sell_min, amount]
-            data["input_A"] = b0[::-1] + s0
-            data["input_B"] = b5[::-1] + s5
-            ret = data
-
+                in1 += raw[ele]["input_1"]
+            input_1.append(in1)
+            input_A.append(raw[tradename]["input_A"])
+            input_B.append(raw[tradename]["input_B"])
+        std = input_1.data.std(axis=0)
+        std[std == 0] = 1
+        input_1.data = (input_1.data - input_1.data.mean(axis=0)) / std
+        std = input_B.data.std(axis=0)
+        std[std == 0] = 1
+        input_B.data = (input_B.data - input_B.data.mean(axis=0)) / std
+        std = input_A.data.std(axis=0)
+        std[std == 0] = 1
+        input_A.data = (input_A.data - input_A.data.mean(axis=0)) / std
+        ret = {"input_1": input_1.data,
+               "input_B": input_B.data,
+               "input_A": input_A.data}
+        if key is not None:
+            ret = ret[key]
         return ret
+
+    def get_label(self, index):  # data pre-processing function
+        tradename = TARGETMARKET
+        start_offset = self.index_valids[index, "OFFSET"] + self.set_size
+        kline = []
+        zero = self.get_batch(start_offset - 1)[tradename]["input_1"][1]
+        for i in range(self.label_size):
+            raw = self.get_batch(start_offset + i)
+            kline.append(raw[tradename]["input_1"][1])
+        ret = np.array(kline, dtype="float32")
+        ret = ret - zero
+        return ret
+
+
+def get_input_1(index):
+    global DATASET
+    if not isinstance(DATASET, DatasetBase):
+        raise Exception("invalid Dataset Base")
+    return DATASET.get_feature(index, "input_1")
+
+
+def get_input_A(index):
+    global DATASET
+    if not isinstance(DATASET, DatasetBase):
+        raise Exception("invalid Dataset Base")
+    return DATASET.get_feature(index, "input_A")
+
+
+def get_input_B(index):
+    global DATASET
+    if not isinstance(DATASET, DatasetBase):
+        raise Exception("invalid Dataset Base")
+    return DATASET.get_feature(index, "input_B")
 
 
 def rnn_init():
-    global ETH_RNN
+    global ETH_RNN, DATASET
 
     paths = [MODEL_FILE]
     for i in paths:
         path_fixer(i)
 
-    print("initializing...")
+    print("initializing database...")
 
-    if __name__ != "__main__":
-        CAPTCHA_CNN = customNN(NAME)
-        CAPTCHA_CNN.load_model(MODEL_FILE)
-        print("captcha CNN fully connected")
+    db_api = MarketDB()
+    DATASET = DatasetBase(db_api, sample_time_ms=SAMPLE_TIME_MS, set_size=SAMPLE_SIZE, label_size=PREDICT_SIZE,
+                          use_index_json=True, index_json=DATASET_INDEX)
+    DATASET.init_dataset()
 
 
 def main():
-    img_paths = [str(ele) for ele in data_root.glob("*.jpg")]
-
-    labels = []
-    label_to_word = {}
-    for i in img_paths:
-        i = i.split('/')[-1]
-        name = i.split("_")
-        id = int(name[1])
-        label_to_word.update({id: name[0]})
-        labels.append(id)
-
-    print("dumping label_to_word...")
-    json.dump(label_to_word, open(DICT_FILE, 'w'), indent=2)
-
-    img_counts = len(img_paths)
-    print("loaded", img_counts, "image paths")
-
-    label_counts = len(labels)
-    print("loaded", label_counts, "labels")
-
-    print("dataset head:")
-    print("============================================" * 3)
-    print("Label\t\tIMG_Path")
-    for i, l in enumerate(labels):
-        if i > 9:
-            break
-        print(" " + str(labels[i]) + "\t\t" + str(img_paths[i]))
-    print("============================================" * 3)
-
+    global DATASET
     # 初始化神经网络
-    cnn = customNN(NAME)
-    cnn.load_dataset((img_paths, labels),
-                     mapFunc=read_preprocess_image,
-                     testRate=TEST_RATE,
-                     batchSize=BATCH_SIZE,
-                     shufflePercentage=BUFF_RATE
-                     )
+    if not isinstance(DATASET, DatasetBase):
+        raise Exception("dataset base is not ready yet")
+
+    seed = 10
+    rnn = customNN(NAME)
+
+    index_list = DATASET.get_indexs()
+    random.seed(seed)
+    random.shuffle(index_list)
+
+    test_list = index_list[:int(len(index_list) * TEST_RATE)]
+    train_list = index_list[int(len(index_list) * TEST_RATE):]
+
+    print("generated {} train samples and {} test samples".format(len(train_list), len(test_list)))
+
+    dset_input_1 = tf.data.Dataset.from_tensor_slices({"input_1": train_list})
+    dset_input_1 = dset_input_1.map(get_input_1, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    dset_input_A = tf.data.Dataset.from_tensor_slices({"input_A": train_list})
+    dset_input_A = dset_input_A.map(get_input_A, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    dset_input_B = tf.data.Dataset.from_tensor_slices({"input_B": train_list})
+    dset_input_B = dset_input_B.map(get_input_B, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    dset_label = tf.data.Dataset.from_tensor_slices(train_list)
+    dset_label = dset_label.map(DATASET.get_label, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    train_dataset = tf.data.Dataset.zip((dset_input_1, dset_input_A, dset_input_B))
+    train_dataset = tf.data.Dataset.zip((train_dataset, dset_label))
+    train_dataset = train_dataset.shuffle(buffer_size=int(2048 * BUFF_RATE)).batch(BATCH_SIZE)
+
+    dset_input_1_test = tf.data.Dataset.from_tensor_slices({"input_1": test_list})
+    dset_input_1_test = dset_input_1_test.map(get_input_1, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    dset_input_A_test = tf.data.Dataset.from_tensor_slices({"input_A": test_list})
+    dset_input_A_test = dset_input_A_test.map(get_input_A, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    dset_input_B_test = tf.data.Dataset.from_tensor_slices({"input_B": test_list})
+    dset_input_B_test = dset_input_B_test.map(get_input_B, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    dset_label_test = tf.data.Dataset.from_tensor_slices(test_list)
+    dset_label_test = dset_label_test.map(DATASET.get_label, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    test_dataset = tf.data.Dataset.zip((dset_input_1_test, dset_input_A_test, dset_input_B_test))
+    test_dataset = tf.data.Dataset.zip((test_dataset, dset_label_test))
+    test_dataset = test_dataset.shuffle(buffer_size=int(2048 * BUFF_RATE)).batch(BATCH_SIZE)
+
+    rnn.train_db = train_dataset
+    rnn.test_db = test_dataset
 
     # 初始化网络模型并执行设置
     if os.path.exists(MODEL_FILE):
-        cnn.load_model(MODEL_FILE)
+        rnn.load_model(MODEL_FILE)
         print("loaded model file from \"{}\"".format(MODEL_FILE))
     else:
-        cnn.init_model()
+        rnn.init_model()
 
-    print(cnn.model.summary())
+    print(rnn.model.summary())
 
-    cnn.set_model_file(MODEL_FILE)
 
-    print("testing model speed...")
-
-    val_root = pathlib.Path("../validations")
-
-    test_files = [str(ele) for ele in val_root.glob("*.jpg")]
-
-    test_data = [read_preprocess_image(ele) for ele in test_files]
-
-    for i in range(5):
-        t1 = time.time()
-        for ele in test_data:
-            res = cnn.predict(ele)
-        t2 = time.time()
-        print("  testing {} files, time spent {}ms, {}ms per pred".format(len(test_data),
-                                                                          round((t2 - t1) * 1000, 2),
-                                                                          round(((t2 - t1) / len(test_data)) * 1000,
-                                                                                2)))
-
-    print("outputs: {}".format(res))
-
-    for i in range(5):
-        t3 = time.time()
-        data = tf.data.Dataset.from_tensor_slices(test_data).repeat().batch(8)
-        t4 = time.time()
-        t1 = time.time()
-        res = cnn.predict(data.take(1))
-        t2 = time.time()
-        print("  testing {} files, time spent {}ms, {}ms per data,\n  batching spent {}ms, total {}ms".format(
-            len(test_data),
-            round((t2 - t1) * 1000, 2),
-            round((t2 - t1) * 125, 2),
-            round((t4 - t3) * 1000, 2),
-            round((t2 - t3) * 1000, 2)))
-
-    print("outputs: {}".format(res))
-
-    cnn.enable_tensorboard()
+    rnn.enable_tensorboard()
     # cnn.enable_checkpointAutosave(MODEL_FILE)
-
-    # 检查数据集匹配是否有错
-    print("datasets:\n{}".format(str(cnn.train_db)))
-    for i in range(3):
-        img = read_preprocess_image(img_paths[random.randint(0, img_counts)])
-        plt.imshow(img)
-        plt.show()
-
-    # 微调模型
-    if True:
-        choice = input("should we fine tune now? level(1,2/n): ".format(str(EPOCHES)))
-        if EPOCHES > 0 and choice in ("1", "2"):
-            cnn.postProc_model(int(choice))
 
     # 初次训练网络
     choice = input("start training for {} epoch(s)? (Y/n): ".format(str(EPOCHES)))
     trained = False
     if EPOCHES > 0 and choice in ("Y", "y", "yes"):
-        cnn.train(epochs=EPOCHES)
+        rnn.train(epochs=EPOCHES)
         trained = True
 
     # 保存模型
     if trained:
-        cnn.save_model()
+        rnn.save_model()
         print("model saved to \"{}\"".format(MODEL_FILE))
 
     # 测试模型
     print("evaluating trained model...")
-    cnn.evaluate()
-
-    # 预测
-    while True:
-        path = input("test file path: ")
-        res = cnn.predict(read_preprocess_image(path))
-        word = label_to_word[tf.argmax(res[0]).numpy()]
-        print("result: {}".format(word))
-        plt.imshow(read_preprocess_image(path))
-        plt.show()
+    rnn.evaluate()
 
 
 if __name__ == "__main__":
     rnn_init()
     main()
 else:
-    # rnn_init()
+    #rnn_init()
     pass

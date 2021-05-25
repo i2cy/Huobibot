@@ -5,7 +5,7 @@
 # Created on: 2021/5/11
 import time
 
-from rnn.eth_predict import DatasetBase, SAMPLE_SIZE, SAMPLE_TIME_MS, DATASET_INDEX
+from eth_predict import DatasetBase, SAMPLE_SIZE, SAMPLE_TIME_MS, DATASET_INDEX
 from api.market_db import *
 from i2cylib.utils.stdout.echo import *
 
