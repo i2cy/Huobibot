@@ -1,0 +1,6 @@
+{
+  "log_filename": "logs/database_service.log",
+  "log_level" : "DEBUG",
+  "server_port": 36881,
+  "dyn_key": "*HAU__SCN+C=biasdiua#sd71asd"
+}
