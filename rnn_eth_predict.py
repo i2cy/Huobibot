@@ -29,14 +29,14 @@ if len(tf.config.list_physical_devices('GPU')) > 0:
     tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
 
 DATASET_INDEX = "database/index.npz"  # 数据集预处理索引ID
-TARGETMARKET = "DOGEUSDT"
+TARGETMARKET = "ETHUSDT"
 
 TEST_RATE = 0.05  # 测试集比例
-BATCH_SIZE = 10  # 批处理大小
+BATCH_SIZE = 128  # 批处理大小
 SAMPLE_SIZE = 720  # 特征样本大小
 PREDICT_SIZE = 80  # 预测输出大小
 SAMPLE_TIME_MS = 7500  # 采样间隔时间（单位ms）
-EPOCHES = 10  # 训练代数
+EPOCHES = 100  # 训练代数
 BUFF_RATE = 0.1  # 缓冲区大小指数
 LEARNING_RATE = 0.0001  # 学习率
 MODEL_FILE = "rnn/models/eth_market_model.h5"  # 在此处修改神经网络模型文件
@@ -333,8 +333,9 @@ class customNN:
     def compile_model(self):
         lr_reduce = tf.keras.callbacks.ReduceLROnPlateau('loss', patience=3, factor=0.5, min_lr=0.000001)
         self.callbacks.append(lr_reduce)
+        loss = tf.keras.losses.Huber(delta=2.4)
         self.model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
-                           loss="mse",  # 均方差预测问题
+                           loss=loss,  # 均方差预测问题
                            metrics=["mae"]
                            )
 
@@ -356,9 +357,9 @@ class customNN:
             self.train_history = self.model.fit(self.train_db,
                                                 epochs=epochs,
                                                 initial_epoch=self.epoch,
-                                                steps_per_epoch=self.train_size // self.batch_size,
+                                                #steps_per_epoch=self.train_size // self.batch_size,
                                                 validation_data=self.test_db,
-                                                validation_steps=self.test_size // self.batch_size,
+                                                #validation_steps=self.test_size // self.batch_size,
                                                 callbacks=self.callbacks
                                                 )
             self.epoch += epochs
@@ -408,25 +409,6 @@ class customNN:
         res = self.model.predict(data)
         self.call_times += 1
         return res
-
-
-def read_preprocess_image(img_path):  # 定义数据集map函数
-    img = tf.io.read_file(img_path)
-    img = tf.image.decode_jpeg(img, channels=3)
-    img = tf.image.resize_with_pad(img, 300, 300)
-    img = tf.image.resize(img, [224, 224])
-    img = tf.cast(img, tf.float32)
-    img = img / 255  # 图像归一化，使得输入数据在（-1,1）区间范围内
-    return img
-
-
-def read_preprocess_image_from_raw(img):
-    img = tf.image.decode_jpeg(img, channels=3)
-    img = tf.image.resize_with_pad(img, 300, 300)
-    img = tf.image.resize(img, [224, 224])
-    img = tf.cast(img, tf.float32)
-    img = img / 255  # 图像归一化，使得输入数据在（-1,1）区间范围内
-    return img
 
 
 class predictor:
@@ -936,27 +918,28 @@ def main():
     else:
         rnn.init_model()
 
-    print(rnn.model.summary())
+    #print(rnn.model.summary())
 
 
     rnn.enable_tensorboard()
     # cnn.enable_checkpointAutosave(MODEL_FILE)
 
     # 初次训练网络
-    choice = input("start training for {} epoch(s)? (Y/n): ".format(str(EPOCHES)))
-    trained = False
+    #choice = input("start training for {} epoch(s)? (Y/n): ".format(str(EPOCHES)))
+    choice = "Y"
+    trained = True
     if EPOCHES > 0 and choice in ("Y", "y", "yes"):
         rnn.train(epochs=EPOCHES)
         trained = True
 
     # 保存模型
     if trained:
-        rnn.save_model()
+        rnn.save_model(MODEL_FILE)
         print("model saved to \"{}\"".format(MODEL_FILE))
 
     # 测试模型
-    print("evaluating trained model...")
-    rnn.evaluate()
+#    print("evaluating trained model...")
+#    rnn.evaluate()
 
 
 if __name__ == "__main__":
